@@ -21,7 +21,6 @@ import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
-import com.google.firebase.cloud.FirestoreClient;
 
 @Service
 public class TeamService {
@@ -32,7 +31,7 @@ public class TeamService {
 	Firestore firestore;
 	
 	private CollectionReference getTeamsCollection() {
-		return FirestoreClient.getFirestore().collection(this.TEAM_COLLECTION);
+		return firestore.collection(this.TEAM_COLLECTION);
 	}
 	
 	
@@ -65,7 +64,6 @@ public class TeamService {
 	
 	//Delete Team by its ID. In reality this method just changes a Team's Status to INACTIVE.
 	public String deleteTeamById(String teamId) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getTeamsCollection().document(teamId);
 		//Evaluate if document exists in collection.
 		if(reference.get().get().exists()) {
@@ -86,7 +84,6 @@ public class TeamService {
 	
 	//Replace a team's given field by given replaceValue.
 	public String deleteUserField(String teamId, String teamField) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getTeamsCollection().document(teamId);
 		//Evaluate if document exists.
 		if(!reference.get().get().exists() && teamField != "teamName") {
@@ -108,7 +105,6 @@ public class TeamService {
 	}
 
 	public String updateFieldField(String teamId, String teamField, String replaceValue) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getTeamsCollection().document(teamId);
 		if(reference.get().get().exists()) {
 			if(teamField.equals("teamName")) {

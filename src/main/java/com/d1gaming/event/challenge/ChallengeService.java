@@ -21,7 +21,6 @@ import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
-import com.google.firebase.cloud.FirestoreClient;
 
 @Service
 public class ChallengeService {
@@ -67,7 +66,6 @@ public class ChallengeService {
 	
 	//Delete Challenge from collection by its ID.
 	public String deleteChallengeById(String challengeId) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getChallengesCollection().document(challengeId);
 		DocumentSnapshot snapshot = getChallengesCollection().document(challengeId).get().get();
 		//Evaluate if challenge exists in collection.
@@ -83,7 +81,6 @@ public class ChallengeService {
 	
 	//Delete challenge field
 	public String deleteChallengeField(String challengeId, String challengeField) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getChallengesCollection().document(challengeId);
 		DocumentSnapshot snapshot = reference.get().get();
 		//Evaluate if challenge exists.
@@ -101,7 +98,6 @@ public class ChallengeService {
 	
 	//Update a challenge.
 	public String updateChallenge(Challenge challenge) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getChallengesCollection().document(challenge.getChallengeId());	
 		//Evaluate if challenge exists.
 		if(reference.get().get().exists()) {
@@ -115,7 +111,6 @@ public class ChallengeService {
 	}
 	
 	public String updateField(String challengeId, String challengeField, String replaceValue) throws InterruptedException, ExecutionException {
-		Firestore firestore = FirestoreClient.getFirestore();
 		DocumentReference reference = getChallengesCollection().document(challengeId);
 		if(reference.get().get().exists()) {
 			WriteBatch batch = firestore.batch();
@@ -131,7 +126,6 @@ public class ChallengeService {
 	public String postOneVOneChallenge(String userId, Challenge challenge) throws InterruptedException, ExecutionException {
 		final String USERS = "users";
 		String response = "Could not create challenge.";
-		Firestore firestore = FirestoreClient.getFirestore();
 		final DocumentReference reference = firestore.collection(USERS).document(userId);
 		//If document exists in challenge collection.
 		if(reference.get().get().exists()) {
@@ -165,7 +159,6 @@ public class ChallengeService {
 	
 	public String postChallenge(Map<String,Object> userMap, String userAdminId, Challenge challenge) throws InterruptedException, ExecutionException {
 		final String USERS = "users";
-		Firestore firestore = FirestoreClient.getFirestore();
 		final DocumentReference reference = firestore.collection(USERS).document(userAdminId);
 		String response = "Could not create challenge.";
 		//If user is present on users collection.
