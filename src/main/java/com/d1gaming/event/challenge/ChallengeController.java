@@ -41,7 +41,7 @@ public class ChallengeController {
 	}
 	
 	@GetMapping(value = "/challenges")
-	public ResponseEntity<Object> getAllChallenges() throws InterruptedException, ExecutionException{
+	public ResponseEntity<Object> getAllChallenges() throws InterruptedException, ExecutionException {
 		List<Challenge> ls = challengeServ.getAllChallenges();
 		if(ls.isEmpty()) {
 			return new ResponseEntity<>("No content",HttpStatus.NO_CONTENT);

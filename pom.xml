@@ -23,10 +23,10 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>com.d1gaming</groupId>
-			<artifactId>GamingLeague-Back-end-Library</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
+		<dependency>  
+		  <groupId>com.d1gaming</groupId>
+		  <artifactId>D1Gaming-Library-Back-end</artifactId>
+		  <version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 		    <groupId>com.google.cloud</groupId>
@@ -39,9 +39,14 @@
 		    <artifactId>google-cloud-core</artifactId>
 		    <version>1.93.10</version>
 		</dependency>
-
-		
-		
+		<dependency>
+		    <groupId>org.springframework.security</groupId>
+		    <artifactId>spring-security-web</artifactId>   
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
