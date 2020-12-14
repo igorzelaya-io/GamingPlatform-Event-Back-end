@@ -40,6 +40,11 @@
 		    <version>1.93.10</version>
 		</dependency>
 		<dependency>
+			<groupId>com.d1gaming</groupId>
+			<artifactId>D1Gaming-User-Back-end</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
 		    <groupId>org.springframework.security</groupId>
 		    <artifactId>spring-security-web</artifactId>   
 		</dependency>

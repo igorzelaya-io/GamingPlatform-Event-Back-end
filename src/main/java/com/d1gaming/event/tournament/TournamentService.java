@@ -12,10 +12,12 @@ import com.d1gaming.library.role.Role;
 import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
+import com.d1gaming.user.user.UserService;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
@@ -67,17 +69,22 @@ public class TournamentService {
 		return null;
 	}
 	
-	public String postTournament(User user, Tournament tournament) throws InterruptedException, ExecutionException {
+	public String postTournament(String userId, Tournament tournament) throws InterruptedException, ExecutionException {
+		UserService userService = new UserService();
 		DocumentReference reference = getTournamentsCollection().add(tournament).get();
 		String documentId = reference.getId();
 		DocumentSnapshot snapshot = reference.get().get();
 		WriteBatch batch = firestore.batch();
 		batch.update(reference, "tournamentId", documentId);
-		addModeratorRoleToUser(user);
 		List<WriteResult> results = batch.commit().get();
 		results.forEach(result -> {
 			System.out.println("Update Time: " + result.getUpdateTime());
 		});
+		User user = userService.getUserById(userId);
+		if(user == null) {
+			return "User not found.";
+		}
+		addModeratorRoleToUser(user);
 		if(!snapshot.exists()) {
 			return "Tournament could not be created";
 		}
@@ -101,6 +108,35 @@ public class TournamentService {
 		}
 		return "Tournament could not be deleted.";
 	}
+	
+	public String updateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
+		DocumentReference reference = getTournamentsCollection().document(tournament.getTournamentId());
+		if(!reference.get().get().exists()) {
+			return "Tournament not found.";
+		}
+		WriteBatch batch = firestore.batch();
+		batch.set(reference, tournament);
+		List<WriteResult> results = batch.commit().get();
+		results.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		return "Tournament created successfully";
+	}
+	
+	public String deleteTournamentField(String tournamentId, String tournamentField) throws InterruptedException, ExecutionException {
+		DocumentReference reference = getTournamentsCollection().document(tournamentId);
+		if(!reference.get().get().exists()) {
+			return "Tournament not found";
+		}
+		WriteBatch batch = firestore.batch();
+		batch.update(reference, tournamentField, FieldValue.delete());
+		List<WriteResult> results = batch.commit().get();
+		results.forEach(result -> System.out.println("Update time: " + result.getUpdateTime()));
+		Tournament tournament = reference.get().get().toObject(Tournament.class);
+		if(tournament.getTournamentStatus().equals(null)) {
+			return "Tournament with ID: '" + tournament.getTournamentId() +"' successfully.";
+		}
+		return "Tournament could not be deleted.";
+	}
+
 	
 	private void addModeratorRoleToUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = firestore.collection("users").document(user.getUserId());

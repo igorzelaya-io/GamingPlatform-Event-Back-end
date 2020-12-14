@@ -9,14 +9,17 @@ import java.util.concurrent.ExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.d1gaming.library.request.TeamInviteRequest;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamStatus;
+import com.d1gaming.library.user.User;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
@@ -46,6 +49,15 @@ public class TeamService {
 		return null;
 	}
 	
+	public Team getTeamByName(String teamName) throws InterruptedException, ExecutionException {
+		DocumentReference reference = getTeamsCollection().document(teamName);
+		if(!reference.get().get().exists()) {
+			DocumentSnapshot snapshot = reference.get().get();
+			return snapshot.toObject(Team.class);
+		}
+		return null;
+	}
+	
 	//Get all teams available in a collection.
 	public List<Team> getAllTeams() throws InterruptedException, ExecutionException{
 		ApiFuture<QuerySnapshot> collection = getTeamsCollection().get();
@@ -60,6 +72,17 @@ public class TeamService {
 			return teamLs;
 		}
 		return null;
+	}
+	
+	public String postTeam(Team team) throws InterruptedException, ExecutionException {
+		DocumentReference reference = getTeamsCollection().add(team).get();
+		String teamId = reference.getId();
+		DocumentSnapshot snapshot = reference.get().get();
+		snapshot.toObject(Team.class).setTeamId(teamId);
+		if(snapshot.exists()) {
+			return "Team with ID: '" + teamId  + "' has been created.";
+		}
+		return "Team could not be created.";
 	}
 	
 	//Delete Team by its ID. In reality this method just changes a Team's Status to INACTIVE.
@@ -104,7 +127,7 @@ public class TeamService {
 		return "Team not found.";
 	}
 
-	public String updateFieldField(String teamId, String teamField, String replaceValue) throws InterruptedException, ExecutionException {
+	public String updateTeamField(String teamId, String teamField, String replaceValue) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getTeamsCollection().document(teamId);
 		if(reference.get().get().exists()) {
 			if(teamField.equals("teamName")) {
@@ -115,5 +138,24 @@ public class TeamService {
 		}
 		return "Team not found.";
 	}
-
-}
+	
+	public String sendTeamInvite(TeamInviteRequest request) throws InterruptedException, ExecutionException{
+		DocumentReference reference = firestore.collection("users").document(request.getRequestedUser().getUserId());
+		if(!reference.get().get().exists()) {
+			return "User not found.";
+		}
+		List<TeamInviteRequest>  userRequests = request.getRequestedUser().getUserTeamRequests();
+		userRequests.add(request);
+		WriteBatch batch = firestore.batch();
+		batch.update(reference, "userTeamRequests", userRequests);
+		List<WriteResult> results = batch.commit().get();
+		results.forEach(result -> 
+			System.out.println("Update Time: " + result.getUpdateTime())
+		);
+		User user = request.getRequestedUser();
+		if(user.getUserTeamRequests().contains(request)) {
+			return "Invite sent successfully.";
+		}
+		return "Invite could not be sent.";
+	}
+}	
