@@ -34,7 +34,7 @@ public class ServiceController {
 		if(service == null) {
 			return new ResponseEntity<>(service,HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<>(service, HttpStatus.OK);
+		return new ResponseEntity<>(service.get(), HttpStatus.OK);
 	}
 	
 	@PreAuthorize("hasRole('PLAYER')")

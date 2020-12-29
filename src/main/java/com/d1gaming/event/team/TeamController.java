@@ -1,6 +1,8 @@
 package com.d1gaming.event.team;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +17,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
 
@@ -29,20 +33,20 @@ public class TeamController {
 	
 	@GetMapping(value = "/teams/search", params = "teamName")
 	public ResponseEntity<?> getTeamByName(@RequestParam(required = true)String teamName) throws InterruptedException, ExecutionException{
-		Team team = teamService.getTeamByName(teamName);
+		Optional<Team> team = teamService.getTeamByName(teamName);
 		if(team == null) {
 			return new ResponseEntity<>(team, HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<>(team, HttpStatus.OK);
+		return new ResponseEntity<>(team.get(), HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "/teams/search", params= "teamId")
 	public ResponseEntity<?> getTeamById(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
-		Team team = teamService.getTeamById(teamId);
+		Optional<Team> team = teamService.getTeamById(teamId);
 		if(team == null) {
 			return new ResponseEntity<>(team, HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<>(team, HttpStatus.OK);
+		return new ResponseEntity<>(team.get(), HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "/teams")
@@ -55,8 +59,18 @@ public class TeamController {
 	}
 	
 	@PostMapping(value = "/teams/create")
-	public ResponseEntity<?> createTeam(@RequestBody Team team) throws InterruptedException, ExecutionException{
-		String response = teamService.postTeam(team);
+	public ResponseEntity<?> createTeam(@RequestBody(required = true) Team team,
+										@RequestBody(required = false) MultipartFile file) throws InterruptedException, ExecutionException, IOException{	
+		if(file != null) {
+			ImageModel teamImage = new ImageModel(file.getOriginalFilename(), file.getContentType(),
+													file.getBytes());
+			String response = teamService.postTeamWithImage(team, teamImage);
+			if(response.equals("Team could not be created.")) {
+				return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
+			}
+			return new ResponseEntity<>(response, HttpStatus.OK);
+		}
+		String response = teamService.postTeam(team);			
 		if(response.equals("Team could not be created.")) {
 			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
 		}

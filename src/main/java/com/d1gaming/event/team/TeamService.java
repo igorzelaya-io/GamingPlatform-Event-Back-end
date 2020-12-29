@@ -2,14 +2,14 @@ package com.d1gaming.event.team;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.d1gaming.event.image.EventImageService;
+import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
 import com.d1gaming.library.team.TeamStatus;
@@ -26,12 +26,16 @@ import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
+import java.util.Optional;
 
 @Service
 public class TeamService {
 
 	@Autowired
 	private Firestore firestore;
+	
+	@Autowired
+	private EventImageService eventImagesService;
 	
 	private UserService userService;
 	
@@ -65,20 +69,20 @@ public class TeamService {
 	}
 	
 	//Get a Team by its Id.
-	public Team getTeamById(String teamId) throws InterruptedException, ExecutionException {
+	public Optional<Team> getTeamById(String teamId) throws InterruptedException, ExecutionException {
 		if(isActive(teamId)) {
 			DocumentReference teamReference = getTeamReference(teamId);
 			DocumentSnapshot teamSnapshot = teamReference.get().get();
-			return teamSnapshot.toObject(Team.class);
+			return Optional.of(teamSnapshot.toObject(Team.class));
 		}
 		return null;
 	}
 	
-	public Team getTeamByName(String teamName) throws InterruptedException, ExecutionException {
+	public Optional<Team> getTeamByName(String teamName) throws InterruptedException, ExecutionException {
 		DocumentReference teamReference = getTeamReferenceByName(teamName);		
 		if(isActive(teamReference.getId())) {
 			DocumentSnapshot teamSnapshot = teamReference.get().get();
-			return teamSnapshot.toObject(Team.class);
+			return Optional.of(teamSnapshot.toObject(Team.class));
 		}
 		return null;
 	}
@@ -105,6 +109,18 @@ public class TeamService {
 		snapshot.toObject(Team.class).setTeamId(teamId);
 		if(snapshot.exists()) {
 			return "Team with ID: '" + teamId  + "' has been created.";
+		}
+		return "Team could not be created.";
+	}
+	
+	public String postTeamWithImage(Team team, ImageModel teamImage) throws InterruptedException, ExecutionException {
+		DocumentReference reference = getTeamsCollection().add(team).get();
+		String teamId = reference.getId();
+		DocumentSnapshot snapshot = reference.get().get();
+		snapshot.toObject(Team.class).setTeamId(teamId);
+		eventImagesService.saveTeamImage(teamId, teamImage);
+		if(snapshot.exists()) {
+			return "Team with ID: '" +teamId + "' was created.";
 		}
 		return "Team could not be created.";
 	}

@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,9 +26,9 @@ public class EventImageController {
 	@Autowired
 	private EventImageService eventImagesService;
 	
-	@PostMapping(value = "/images/save", params = "teamId, file")
+	@PostMapping(value = "/images/save", params = "teamId")
 	public ResponseEntity<?> saveTeamImage(@RequestParam(required = true)String teamId,
-											@RequestParam(required = true)MultipartFile file) throws InterruptedException, ExecutionException, IOException{
+										   @RequestBody(required = true)MultipartFile file) throws InterruptedException, ExecutionException, IOException{
 		ImageModel image = new ImageModel(file.getOriginalFilename(), file.getContentType(),
 											file.getBytes());
 		String response = eventImagesService.saveTeamImage(teamId, image);
@@ -37,13 +38,13 @@ public class EventImageController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
-	@GetMapping( value = "images/search", params = "teamId")
+	@GetMapping( value = "/images/search", params = "teamId")
 	public ResponseEntity<?> getTeamImage(@RequestParam(required = true) String teamId) throws InterruptedException, ExecutionException{
 		Optional<ImageModel> image = eventImagesService.getTeamImage(teamId);
 		if(image == null) {
 			return new ResponseEntity<>(image, HttpStatus.NO_CONTENT);
 		}
-		return new ResponseEntity<>(image, HttpStatus.OK);
+		return new ResponseEntity<>(image.get(), HttpStatus.OK);
 	}
 
 	

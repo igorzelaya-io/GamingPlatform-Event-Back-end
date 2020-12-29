@@ -31,7 +31,7 @@ public class ChallengeController {
 	@GetMapping(value = "challenges/search", params="challengeId")
 	public ResponseEntity<Object> getChallengeById(@RequestParam(required = true)final String challengeId) throws InterruptedException, ExecutionException{
 		if(challengeId == null) {
-			return new ResponseEntity<>("Invalid input",HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
 		}
 		Challenge challenge = challengeServ.getChallengeById(challengeId);
 		if(challenge == null) {

@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.d1gaming.library.challenge.Challenge;
+import com.d1gaming.library.challenge.ChallengeStatus;
 import com.d1gaming.library.user.User;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
@@ -34,6 +35,19 @@ public class ChallengeService {
 	//Get CollectionReference for Challenges collection.
 	private CollectionReference getChallengesCollection() {
 		return firestore.collection(this.CHALLENGES_COLLECTION);
+	}
+	
+	private DocumentReference getChallengeReference(String challengeId) {
+		return getChallengesCollection().document(challengeId);
+	}
+	
+	private boolean isActive(String challengeId) throws InterruptedException, ExecutionException {
+		DocumentReference challengeReference = getChallengeReference(challengeId);
+		DocumentSnapshot challengeSnapshot = challengeReference.get().get();
+		if(challengeSnapshot.exists() && challengeSnapshot.toObject(Challenge.class).getChallengeStatus().equals(ChallengeStatus.ACTIVE)) {
+			return true;
+		}
+		return false;
 	}
 	
 	
