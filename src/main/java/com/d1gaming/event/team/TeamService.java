@@ -3,6 +3,7 @@ package com.d1gaming.event.team;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,6 @@ import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
-import java.util.Optional;
 
 @Service
 public class TeamService {
@@ -45,12 +45,9 @@ public class TeamService {
 		return firestore.collection(this.TEAM_COLLECTION);
 	}
 	
-	private DocumentReference getTeamReference(String teamId) {
-		return getTeamsCollection().document(teamId);
-	}
 	
-	private boolean isActive(String userId) throws InterruptedException, ExecutionException {
-		DocumentReference teamReference = getTeamReference(userId);
+	public boolean isActive(String teamId) throws InterruptedException, ExecutionException {
+		DocumentReference teamReference = getTeamReference(teamId);
 		DocumentSnapshot teamSnapshot = teamReference.get().get();
 		if(teamSnapshot.exists() && teamSnapshot.toObject(Team.class).getTeamStatus().equals(TeamStatus.ACTIVE)) {
 			return true;
@@ -66,6 +63,10 @@ public class TeamService {
 			teamReference = getTeamReference(team.getTeamId());
 		}
 		return teamReference;
+	}
+	
+	public DocumentReference getTeamReference(String teamId) {
+		return getTeamsCollection().document(teamId);
 	}
 	
 	//Get a Team by its Id.

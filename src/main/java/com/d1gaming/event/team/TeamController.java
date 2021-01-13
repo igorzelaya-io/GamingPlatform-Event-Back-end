@@ -31,6 +31,15 @@ public class TeamController {
 	@Autowired
 	private TeamService teamService;
 	
+	@GetMapping(value = "/teams/search", params= "teamId")
+	public ResponseEntity<?> getTeamById(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
+		Optional<Team> team = teamService.getTeamById(teamId);
+		if(team == null) {
+			return new ResponseEntity<>(team, HttpStatus.NOT_FOUND);
+		}
+		return new ResponseEntity<>(team.get(), HttpStatus.OK);
+	}
+
 	@GetMapping(value = "/teams/search", params = "teamName")
 	public ResponseEntity<?> getTeamByName(@RequestParam(required = true)String teamName) throws InterruptedException, ExecutionException{
 		Optional<Team> team = teamService.getTeamByName(teamName);
@@ -40,14 +49,6 @@ public class TeamController {
 		return new ResponseEntity<>(team.get(), HttpStatus.OK);
 	}
 	
-	@GetMapping(value = "/teams/search", params= "teamId")
-	public ResponseEntity<?> getTeamById(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
-		Optional<Team> team = teamService.getTeamById(teamId);
-		if(team == null) {
-			return new ResponseEntity<>(team, HttpStatus.NOT_FOUND);
-		}
-		return new ResponseEntity<>(team.get(), HttpStatus.OK);
-	}
 	
 	@GetMapping(value = "/teams")
 	public ResponseEntity<?> getAllTeams() throws InterruptedException, ExecutionException{
