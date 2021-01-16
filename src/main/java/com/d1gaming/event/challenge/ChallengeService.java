@@ -53,12 +53,12 @@ public class ChallengeService {
 	
 	//Get a challenge by its ID.
 	public Challenge getChallengeById(String challengeId) throws InterruptedException, ExecutionException {
-		DocumentReference reference = getChallengesCollection().document(challengeId);
+		DocumentReference reference = getChallengeReference(challengeId);
 		//If document does not exist, return null.
-		if(!reference.get().get().exists()) {
-			return null;
+		if(isActive(challengeId)) {
+			return reference.get().get().toObject(Challenge.class);
 		}
-		return reference.get().get().toObject(Challenge.class);
+		return null;
 	}
 	
 	
@@ -66,16 +66,13 @@ public class ChallengeService {
 	public List<Challenge> getAllChallenges() throws InterruptedException, ExecutionException{
 		//Retrieve all documents asynchronously.
 		ApiFuture<QuerySnapshot> snapshot = getChallengesCollection().get();
-		List<QueryDocumentSnapshot> ls = snapshot.get().getDocuments();
+		List<QueryDocumentSnapshot> documentList = snapshot.get().getDocuments();
 		//If there are no documents, return null.
-		if(!ls.isEmpty()) {
-			List<Challenge> userLs = new ArrayList<>();
-			ls.forEach((obj) -> {
-				userLs.add(obj.toObject(Challenge.class));
-			});
-			return userLs;
-		}
-		return null;
+		List<Challenge> userList = new ArrayList<>();
+		documentList.forEach(document -> {
+			documentList.add(document);
+		});
+		return userList;
 	}
 	
 	//Delete Challenge from collection by its ID.

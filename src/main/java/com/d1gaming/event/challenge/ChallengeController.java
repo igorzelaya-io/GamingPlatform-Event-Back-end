@@ -62,7 +62,7 @@ public class ChallengeController {
 	
 	@PostMapping(value = "/challenges/save", params = "userMap, userAdminId")
 	public ResponseEntity<Object> postChallenge(@RequestParam(required = true) Map<String,Object> userMap , 
-												@RequestParam(required = true)String userAdminId, 
+												@RequestParam(required = true) String userAdminId, 
 												@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
 		String response = challengeServ.postChallenge(userMap, userAdminId, challenge);
 		if(response.equals("Could not create challenge.")) {
