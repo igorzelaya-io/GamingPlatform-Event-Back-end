@@ -15,7 +15,7 @@ import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
-import com.d1gaming.user.user.UserService;
+import com.d1gaming.library.user.UserStatus;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
@@ -35,9 +35,8 @@ public class TournamentService {
 	@Autowired
 	private Firestore firestore;
 	
-	private UserService userService = new UserService();
-	
-	private TeamService teamService = new TeamService();
+	@Autowired
+	private TeamService teamService;
 	
 	private CollectionReference getTournamentsCollection() {
 		return firestore.collection(this.TOURNAMENTS_COLLECTION);
@@ -54,6 +53,19 @@ public class TournamentService {
 			return true;
 		}
 		return false;
+	}
+	
+	private User getUserById(String userId) throws InterruptedException, ExecutionException {
+		DocumentReference userReference = firestore.collection("users").document(userId);
+		DocumentSnapshot userSnapshot = userReference.get().get();
+		if(userSnapshot.exists()) {
+			return userSnapshot.toObject(User.class);
+		}
+		return null; 
+	}
+	
+	private DocumentReference getUserReference(String userId) {
+		return firestore.collection("users").document(userId);
 	}
 
 	
@@ -104,11 +116,10 @@ public class TournamentService {
 	}
 	
 	
-	public String postTournament(String userId, Tournament tournament) throws InterruptedException, ExecutionException {
-		if(userService.isActive(userId)) {
+	public String postTournament(User user, Tournament tournament) throws InterruptedException, ExecutionException {
+		if(user.getUserStatusCode().equals(UserStatus.ACTIVE) && getUserById(user.getUserId()) != null) {
 			DocumentReference reference = getTournamentsCollection().add(tournament).get();
 			DocumentSnapshot snapshot = reference.get().get();
-			User user = userService.getUserById(userId);
 			String documentId = reference.getId();
 			WriteBatch batch = firestore.batch();
 			batch.update(reference, "tournamentId", documentId);
@@ -207,7 +218,7 @@ public class TournamentService {
 	}
 	
 	private void addModeratorRoleToUser(User user) throws InterruptedException, ExecutionException {
-		DocumentReference userReference = userService.getUserReference(user.getUserId());
+		DocumentReference userReference = getUserReference(user.getUserId());
 		List<Role> userRoleLs = user.getUserRoles();
 		Role role = new Role("TourneyModerator", ERole.ROLE_TOURNEY_MODERATOR);
 		if(userRoleLs.contains(role)) {
@@ -221,7 +232,7 @@ public class TournamentService {
 	}
 	
 	private void removeModeratorRoleFromUser(User user) throws InterruptedException, ExecutionException {
-		DocumentReference reference = userService.getUserReference(user.getUserId());
+		DocumentReference reference = getUserReference(user.getUserId());
 		List<Role> userRoleLs = user.getUserRoles();
 		Role role = new Role("TourneyModerator", ERole.ROLE_TOURNEY_MODERATOR);
 		if(userRoleLs.contains(role)) {

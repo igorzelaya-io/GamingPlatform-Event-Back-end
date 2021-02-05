@@ -25,7 +25,7 @@
 		</dependency>
 		<dependency>  
 		  <groupId>com.d1gaming</groupId>
-		  <artifactId>D1Gaming-Library-Back-end</artifactId>
+ 		  <artifactId>D1Gaming-Library-Back-end</artifactId>
 		  <version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
@@ -39,11 +39,11 @@
 		    <artifactId>google-cloud-core</artifactId>
 		    <version>1.93.10</version>
 		</dependency>
-		<dependency>
-			<groupId>com.d1gaming</groupId>
-			<artifactId>D1Gaming-User-Back-end</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
+		<!-- <dependency>
+		    <groupId>org.springframework.data</groupId>
+		    <artifactId>spring-data-elasticsearch</artifactId>
+		    <version>3.2.5.RELEASE</version>
+		</dependency> -->
 		<dependency>
 		    <groupId>org.springframework.security</groupId>
 		    <artifactId>spring-security-web</artifactId>   

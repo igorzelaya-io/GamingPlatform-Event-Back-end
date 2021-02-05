@@ -15,7 +15,6 @@ import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
 import com.d1gaming.library.team.TeamStatus;
 import com.d1gaming.library.user.User;
-import com.d1gaming.user.user.UserService;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
@@ -36,8 +35,6 @@ public class TeamService {
 	
 	@Autowired
 	private EventImageService eventImagesService;
-	
-	private UserService userService;
 	
 	private final String TEAM_COLLECTION = "teams";
 	
@@ -231,10 +228,10 @@ public class TeamService {
 				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
 					DocumentSnapshot snapshot = transaction.get(teamReference).get();
 					User teamModerator = (User) snapshot.get("teamModerator");
-					DocumentReference userReference = userService.getUserReference(teamModerator.getUserId());
+					//DocumentReference userReference = userService.getUserReference(teamModerator.getUserId());
 					double tokens = teamModerator.getUserTokens();
 					if(tokens >= 100) {
-						transaction.update(userReference, "userTokens", FieldValue.increment(-100));
+					//	transaction.update(userReference, "userTokens", FieldValue.increment(-100));
 						transaction.update(teamReference, "teamName", newTeamName);
 						return "Team name updated to: '" + newTeamName + "'";
 					}
@@ -248,7 +245,7 @@ public class TeamService {
 	}
 	
 	public String sendTeamInvite(TeamInviteRequest request) throws InterruptedException, ExecutionException{
-		if(userService.getUserReference(request.getRequestedUser().getUserId()) != null && isActive(request.getTeamRequest().getTeamId()))  {
+		//if(userService.getUserReference(request.getRequestedUser().getUserId()) != null && isActive(request.getTeamRequest().getTeamId()))  {
 			List<TeamInviteRequest>  userRequests = request.getRequestedUser().getUserTeamRequests();
 			DocumentReference reference = firestore.collection("users").document(request.getRequestedUser().getUserId());
 			userRequests.add(request);
@@ -264,7 +261,7 @@ public class TeamService {
 				return "Invite sent successfully.";
 			}
 			return "Invite could not be sent.";
-		}
-		return "Not found.";
+		//}
+		//return "Not found.";
 	}
 }	

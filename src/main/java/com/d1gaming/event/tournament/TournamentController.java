@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
+import com.d1gaming.library.user.User;
 
 @RestController
 @CrossOrigin(origins = "localhost:4200")
@@ -66,9 +67,9 @@ public class TournamentController {
 	
 	
 	@PostMapping(value = "/tournaments/save" )
-	public ResponseEntity<?> saveTournament(@RequestParam(required = true)String userId, 
-											@RequestBody Tournament tournament) throws InterruptedException, ExecutionException{
-		String response = tournamentService.postTournament(userId, tournament);	
+	public ResponseEntity<?> saveTournament(@RequestBody(required = true)User user, 
+											@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
+		String response = tournamentService.postTournament(user, tournament);	
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
