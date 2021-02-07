@@ -22,6 +22,7 @@ import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
@@ -55,13 +56,25 @@ public class TournamentService {
 		return false;
 	}
 	
-	private User getUserById(String userId) throws InterruptedException, ExecutionException {
+	public User getUserById(String userId) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = firestore.collection("users").document(userId);
 		DocumentSnapshot userSnapshot = userReference.get().get();
 		if(userSnapshot.exists()) {
 			return userSnapshot.toObject(User.class);
 		}
 		return null; 
+	}
+	
+	public User getUserByUserName(String userName) throws InterruptedException, ExecutionException {
+		Query query = firestore.collection("users").whereEqualTo("userName", userName);
+		QuerySnapshot querySnapshot = query.get().get();
+		if(!querySnapshot.isEmpty()) {
+			List<User> userList = querySnapshot.toObjects(User.class);
+			for(User currUser: userList) {
+				return currUser;
+			}
+		}
+		return null;
 	}
 	
 	private DocumentReference getUserReference(String userId) {
