@@ -18,7 +18,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableGlobalMethodSecurity(
 		securedEnabled = true,
 		jsr250Enabled = true,
-		prePostEnabled = true)
+		prePostEnabled = true
+	)
 public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
 	@Autowired
@@ -46,16 +47,16 @@ public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 	
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
-		http.cors().
-		and()
+		http.cors()
+		.and()
 			.csrf().disable()
 			.exceptionHandling().authenticationEntryPoint(entryPoint)
 		.and()
 			.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 		.and()
 			.authorizeRequests()
-			.antMatchers("/").permitAll()
-			.antMatchers("/servicesapi/**").permitAll()
+			.antMatchers("/servicesapi/getAllServices").permitAll()
+			.antMatchers("/servicesapi/getServiceById").permitAll()
 			.antMatchers("/tournamentsapi/**").permitAll()
 			.anyRequest().authenticated();
 		
