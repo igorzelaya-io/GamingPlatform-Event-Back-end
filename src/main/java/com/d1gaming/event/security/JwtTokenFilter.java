@@ -48,7 +48,7 @@ public class JwtTokenFilter extends OncePerRequestFilter{
 		}
 		UserDetails userDetails = null;
 		try {
-			userDetails = tournamentService.getUserDetailsByUserName(jwtToken)
+			userDetails = tournamentService.getUserDetailsByUserName(jwtTokenUtil.getUserNameFromJwtToken(jwtToken))
 					.orElse(null);
 		} catch (InterruptedException | ExecutionException e) {
 			e.printStackTrace();
