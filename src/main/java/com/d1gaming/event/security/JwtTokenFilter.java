@@ -1,81 +1,66 @@
 package com.d1gaming.event.security;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.jsonwebtoken.ExpiredJwtException;
+import com.d1gaming.event.tournament.TournamentService;
+import com.google.common.net.HttpHeaders;
 
+@Component
 public class JwtTokenFilter extends OncePerRequestFilter{
 
 	@Autowired
 	private JwtTokenUtil jwtTokenUtil;
 	
 	@Autowired
-	private UserServiceDetailsImpl userDetailsService;
+	private TournamentService tournamentService;
 	
-	private static final Logger logger = LoggerFactory.getLogger(JwtTokenFilter.class);
-	
-	@Override
 	//Get authorization header and validate it.
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)throws ServletException, IOException, NullPointerException {
+	@Override
+	protected void doFilterInternal(HttpServletRequest request, 
+									HttpServletResponse response, 
+									FilterChain chain)throws ServletException, IOException, NullPointerException {
+		
+		final String jwtHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+		if(!StringUtils.hasText(jwtHeader) && !jwtHeader.startsWith("Bearer ")) {
+			chain.doFilter(request, response);
+			return;
+		}
+		final String jwtToken = jwtHeader.split(" ")[1].trim();
+		if(!jwtTokenUtil.validate(jwtToken)) {
+			chain.doFilter(request, response);
+			return;
+		}
+		UserDetails userDetails = null;
 		try {
-			String jwt = parseJwt(request);
-			if(jwt != null && jwtTokenUtil.validate(jwt)) {
-				UserDetails userDetails = userDetailsService.loadUserByUsername(jwtTokenUtil.getUserNameFromJwtToken(jwt));
-				UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
-				authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-				SecurityContextHolder.getContext().setAuthentication(authentication);
-			}
-		} 
-		catch(ExpiredJwtException e) {
-			String isRefreshToken = request.getHeader("isRefreshToken");
-			String requestURL = request.getRequestURL().toString();
-			if(isRefreshToken != null && isRefreshToken.equals("true") && requestURL.contains("refreshtoken")) {
-				allowForRefreshToken(e, request);
-			}
-			else {
-				request.setAttribute("exception", e);
-			}
-		}
-		catch(BadCredentialsException ex) {
-			request.setAttribute("exception", ex);
+			userDetails = tournamentService.getUserDetailsByUserName(jwtToken)
+					.orElse(null);
+		} catch (InterruptedException | ExecutionException e) {
+			e.printStackTrace();
 		}
 		
-		catch(Exception e) {
-			logger.error("Cannot set user authentication: {}", e);
-		}
+		UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+				userDetails, null, userDetails == null ? List.of() : userDetails.getAuthorities()
+			);
 		
+		authentication.setDetails(
+					new WebAuthenticationDetailsSource().buildDetails(request));
+		SecurityContextHolder.getContext().setAuthentication(authentication);
 		chain.doFilter(request, response);
 	}
-	
-	private void allowForRefreshToken(ExpiredJwtException ex, HttpServletRequest request) {
-		UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(null, null,  null);
-		SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
-		request.setAttribute("claims", ex.getCause());
-	}
-	
-	private String parseJwt(HttpServletRequest request) {
-		String headerAuth = request.getHeader("Authorization");
-		if(StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-			return headerAuth.substring(7, headerAuth.length());
-		}
-		return null;
-	}
-
-
 }

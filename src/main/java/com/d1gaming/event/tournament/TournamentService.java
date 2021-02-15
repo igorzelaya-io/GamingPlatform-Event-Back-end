@@ -3,6 +3,7 @@ package com.d1gaming.event.tournament;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -245,8 +246,8 @@ public class TournamentService {
 	
 	private void addModeratorRoleToUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = getUserReference(user.getUserId());
-		List<Role> userRoleLs = user.getUserRoles();
-		Role role = new Role("TourneyModerator", ERole.ROLE_TOURNEY_MODERATOR);
+		Set<Role> userRoleLs = user.getUserRoles();
+		Role role = new Role(Role.TOURNEY_ADMIN);
 		if(userRoleLs.contains(role)) {
 			return;
 		}
@@ -259,17 +260,16 @@ public class TournamentService {
 	
 	private void removeModeratorRoleFromUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getUserReference(user.getUserId());
-		List<Role> userRoleLs = user.getUserRoles();
-		Role role = new Role("TourneyModerator", ERole.ROLE_TOURNEY_MODERATOR);
+		Set<Role> userRoleLs = user.getUserRoles();
+		Role role = new Role(Role.TOURNEY_ADMIN);
 		if(userRoleLs.contains(role)) {
-			int roleIndex = userRoleLs.indexOf(role);
-			userRoleLs.remove(roleIndex);
+			userRoleLs.remove(role);
 			WriteBatch batch = firestore.batch();
 			batch.update(reference, "userRoles", userRoleLs);
 			List<WriteResult> results = batch.commit().get();
 			results.forEach(result -> 
 				System.out.println("Update Time: " + result.getUpdateTime()));
 		}
-		return;
+		return; 
 	}
 }
