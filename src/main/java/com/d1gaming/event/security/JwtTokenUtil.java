@@ -29,8 +29,7 @@ public class JwtTokenUtil {
 	@Value("${d1gaming.app.jwtSecret}")
 	private String jwtSecret;
 	
-	@Value("${d1gaming.app.jwtExpirationMs}")
-	private long jwtExpirationMs;
+	private String jwtIssuer = "d1gaming.com";
 	
 	private final Logger logger = LoggerFactory.getLogger(JwtTokenUtil.class);
 

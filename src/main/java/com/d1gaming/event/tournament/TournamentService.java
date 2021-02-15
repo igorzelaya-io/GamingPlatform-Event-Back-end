@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.d1gaming.event.team.TeamService;
-import com.d1gaming.library.role.ERole;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -270,6 +269,6 @@ public class TournamentService {
 			results.forEach(result -> 
 				System.out.println("Update Time: " + result.getUpdateTime()));
 		}
-		return; 
+		return;
 	}
 }
