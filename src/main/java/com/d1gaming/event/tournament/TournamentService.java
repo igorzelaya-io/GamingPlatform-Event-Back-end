@@ -15,6 +15,7 @@ import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
+import com.d1gaming.library.user.UserDetailsImpl;
 import com.d1gaming.library.user.UserStatus;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
@@ -72,6 +73,18 @@ public class TournamentService {
 			List<User> userList = querySnapshot.toObjects(User.class);
 			for(User currUser: userList) {
 				return currUser;
+			}
+		}
+		return null;
+	}
+	
+	public Optional<UserDetailsImpl> getUserDetailsByUserName(String userName) throws InterruptedException, ExecutionException{
+		Query query = firestore.collection("users").whereEqualTo("userName", userName);
+		QuerySnapshot querySnapshot = query.get().get();
+		if(!querySnapshot.isEmpty()) {
+			List<User> userList = querySnapshot.toObjects(User.class);
+			for(User currUser: userList) {
+				return Optional.of(UserDetailsImpl.build(currUser));
 			}
 		}
 		return null;
