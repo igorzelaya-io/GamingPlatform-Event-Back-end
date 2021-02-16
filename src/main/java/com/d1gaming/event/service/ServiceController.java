@@ -16,8 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.d1gaming.library.service.D1Service;
 
 @RestController
-@RequestMapping(path = "/servicesapi")
-@CrossOrigin(origins = "localhost:4200")
+@RequestMapping(path="/servicesapi")
+@CrossOrigin(origins="localhost:4200")
 public class ServiceController {
 	
 	@Autowired

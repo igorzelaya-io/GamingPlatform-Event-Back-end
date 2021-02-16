@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,6 +51,7 @@ public class ChallengeController {
 	}
 	
 	@PostMapping(value = "challenges/save", params = "userId")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<String> postOneVrsOneChallenge(@RequestParam(required = true)String userId, 
 														 @RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
 		String response = challengeServ.postOneVOneChallenge(userId, challenge);
@@ -61,6 +63,7 @@ public class ChallengeController {
 	}
 	
 	@PostMapping(value = "/challenges/save", params = "userMap, userAdminId")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<Object> postChallenge(@RequestParam(required = true) Map<String,Object> userMap , 
 												@RequestParam(required = true) String userAdminId, 
 												@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
@@ -72,6 +75,7 @@ public class ChallengeController {
 	}
 
 	@DeleteMapping("/challenges")
+	@PreAuthorize("hasRole('CHALLENGE_MODERATOR') or hasRole('ADMIN')")
 	public ResponseEntity<Object> deleteChallengeById(@RequestParam(required = true)String challengeId, 
 													  @RequestParam(required = false)String challengeField) throws InterruptedException, ExecutionException{
 		if(challengeField != null) {
@@ -89,6 +93,7 @@ public class ChallengeController {
 	}
 	
 	@PutMapping("/challenges/update")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('CHALLENGE_MODERATOR')")
 	public ResponseEntity<Object> updateChallenge(@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
 		String response = challengeServ.updateChallenge(challenge);
 		if(response.equals("Challenge not found.")) {
@@ -98,6 +103,7 @@ public class ChallengeController {
 	}
 	
 	@PutMapping(value = "/challenges/update",  params = "challengeId, challengeField, replaceValue")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('CHALLENGE_MODERATOR')")
 	public ResponseEntity<Object> upadateChallengeField(@RequestParam(required = true)String challengeId, 
 														@RequestParam(required = true)String challengeField, 
 														@RequestParam(required = true)String replaceValue) throws InterruptedException, ExecutionException{

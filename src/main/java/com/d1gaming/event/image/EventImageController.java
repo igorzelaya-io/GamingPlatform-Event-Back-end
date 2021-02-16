@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +28,7 @@ public class EventImageController {
 	private EventImageService eventImagesService;
 	
 	@PostMapping(value = "/images/save", params = "teamId")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> saveTeamImage(@RequestParam(required = true)String teamId,
 										   @RequestBody(required = true)MultipartFile file) throws InterruptedException, ExecutionException, IOException{
 		ImageModel image = new ImageModel(file.getOriginalFilename(), file.getContentType(),

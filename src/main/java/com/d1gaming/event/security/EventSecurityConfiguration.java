@@ -16,6 +16,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.core.GrantedAuthorityDefaults;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -28,8 +29,8 @@ import com.d1gaming.event.tournament.TournamentService;
 @Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(
-		securedEnabled = true,
-		jsr250Enabled = true,
+//		securedEnabled = true,
+//		jsr250Enabled = true,
 		prePostEnabled = true
 	)
 public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
@@ -45,6 +46,11 @@ public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 	@Bean
 	public JwtTokenFilter authenticationJwtTokenFilter() {
 		return new JwtTokenFilter();
+	}
+	
+	@Bean
+	GrantedAuthorityDefaults grantedAuthorityDefaults() {
+		return new GrantedAuthorityDefaults("");
 	}
 	
 	@Override
@@ -75,7 +81,9 @@ public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 	protected void configure(HttpSecurity http) throws Exception {
 		http = http.cors()
 				.and()
-				.csrf().disable();
+				.csrf()
+				.disable();
+		
 		
 		http = http.sessionManagement()
 				.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -90,9 +98,12 @@ public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 		
 		http
 			.authorizeRequests()
-			.antMatchers("/servicesapi/getAllServices").permitAll()
-			.antMatchers("/servicesapi/getServiceById").permitAll()
+			.antMatchers("/").permitAll()
+			.antMatchers("/challengesapi").permitAll()
+			.antMatchers("/eventimagesapi").permitAll()
+			.antMatchers("/servicesapi/**").permitAll()
 			.antMatchers("/tournamentsapi/**").permitAll()
+			.antMatchers("/teamsapi").permitAll()
 			.anyRequest().authenticated();
 		
 		http.addFilterBefore(authenticationJwtTokenFilter(), 

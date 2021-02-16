@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,7 @@ import com.d1gaming.library.team.TeamInviteRequest;
 
 @RestController
 @CrossOrigin(origins = "localhost:4200")
-@RequestMapping(value = "teamsapi")
+@RequestMapping(value = "/teamsapi")
 public class TeamController {
 
 	@Autowired
@@ -60,6 +61,7 @@ public class TeamController {
 	}
 	
 	@PostMapping(value = "/teams/create")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> createTeam(@RequestBody(required = true) Team team,
 										@RequestBody(required = false) MultipartFile file) throws InterruptedException, ExecutionException, IOException{	
 		if(file != null) {
@@ -79,6 +81,7 @@ public class TeamController {
 	}
 	
 	@PostMapping(value = "/teams/invite")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> sendTeamInvite(@RequestBody TeamInviteRequest teamInvite) throws InterruptedException, ExecutionException{
 		String response = teamService.sendTeamInvite(teamInvite);
 		if(response.equals("User not found.")) {
@@ -93,6 +96,7 @@ public class TeamController {
 	}
 	
 	@DeleteMapping(value = "/teams/delete")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> deleteTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
 		String response = teamService.deleteTeamById(teamId);
 		if(response.equals("Team not found.")){
