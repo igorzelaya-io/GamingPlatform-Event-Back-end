@@ -85,7 +85,7 @@ public class TournamentController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
-	@DeleteMapping(value = "/tournaments/delete")
+	@DeleteMapping(value = "/tournaments/delete/field")
 	public ResponseEntity<?> deleteTournamentField(@RequestParam(required = true)String tournamentId,
 												   @RequestParam(required = true)String tournamentField) throws InterruptedException, ExecutionException{
 		String response = tournamentService.deleteTournamentField(tournamentId, tournamentField);

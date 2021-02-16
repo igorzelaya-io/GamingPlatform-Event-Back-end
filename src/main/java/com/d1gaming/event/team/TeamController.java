@@ -148,7 +148,7 @@ public class TeamController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
-	@PutMapping(value = "/teams/update")
+	@PutMapping(value = "/teams/update/field")
 	public ResponseEntity<?> updateTeamField(@RequestParam(required = true)String teamId,
 											 @RequestParam(required = true)String teamField,
 											 @RequestParam(required = true)String replaceValue) throws InterruptedException, ExecutionException{
