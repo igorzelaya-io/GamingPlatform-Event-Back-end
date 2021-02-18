@@ -22,7 +22,7 @@ public class EventFirestoreInitialize {
 	@PostConstruct
 	public FirestoreOptions initialize() throws IOException {
         return FirestoreOptions.getDefaultInstance()
-        										.toBuilder().setProjectId("d1gamingplatform")
+        										.toBuilder().setProjectId("d1gamingapp")
         										.setCredentials(GoogleCredentials.fromStream(resourceFile.getInputStream()))
         										.build();
 	}
