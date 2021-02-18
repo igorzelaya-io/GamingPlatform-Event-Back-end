@@ -28,11 +28,7 @@ import com.d1gaming.event.tournament.TournamentService;
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(
-//		securedEnabled = true,
-//		jsr250Enabled = true,
-		prePostEnabled = true
-	)
+@EnableGlobalMethodSecurity( prePostEnabled = true )
 public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
 	@Autowired
@@ -92,18 +88,13 @@ public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 		http = http.exceptionHandling()
 				.authenticationEntryPoint(
 						(request, response, ex) -> {
-							logger.error("Unauthorized request - {}", ex.getMessage());
+							logger.error("Unauthorized request -{}", ex.getMessage());
 							response.sendError(HttpServletResponse.SC_UNAUTHORIZED, ex.getMessage());
 						}).and();
 		
 		http
 			.authorizeRequests()
-			.antMatchers("/").permitAll()
-			.antMatchers("/challengesapi").permitAll()
-			.antMatchers("/eventimagesapi").permitAll()
-			.antMatchers("/servicesapi/**").permitAll()
-			.antMatchers("/tournamentsapi/**").permitAll()
-			.antMatchers("/teamsapi").permitAll()
+			.antMatchers("/**").permitAll()
 			.anyRequest().authenticated();
 		
 		http.addFilterBefore(authenticationJwtTokenFilter(), 

@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ import com.d1gaming.library.user.User;
 @RestController
 @CrossOrigin(origins = "localhost:4200")
 @RequestMapping( value = "/tournamentsapi")
+@PreAuthorize("permitAll()")
 public class TournamentController {
 
 	@Autowired
@@ -67,6 +69,7 @@ public class TournamentController {
 	
 	
 	@PostMapping(value = "/tournaments/save" )
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> saveTournament(@RequestBody(required = true)User user, 
 											@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = tournamentService.postTournament(user, tournament);	
@@ -77,6 +80,7 @@ public class TournamentController {
 	} 
 	
 	@DeleteMapping(value = "/tournaments/delete")
+	@PreAuthorize("hasRole('TOURNEY_ADMIN') or hasRole('ADMIN')")
 	public ResponseEntity<?> deleteTournament(@RequestParam(required = true) String tournamentId) throws InterruptedException, ExecutionException{
 		String response = tournamentService.deleteTournament(tournamentId);
 		if(response.equals("Tournament not found.")) {
@@ -86,6 +90,7 @@ public class TournamentController {
 	}
 	
 	@DeleteMapping(value = "/tournaments/delete/field")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<?> deleteTournamentField(@RequestParam(required = true)String tournamentId,
 												   @RequestParam(required = true)String tournamentField) throws InterruptedException, ExecutionException{
 		String response = tournamentService.deleteTournamentField(tournamentId, tournamentField);
@@ -96,6 +101,7 @@ public class TournamentController {
 	}
 	
 	@PutMapping(value = "tournaments/update")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<?> updateTournament(@RequestBody Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = tournamentService.updateTournament(tournament);
 		if(response.equals("Tournament not found.")) {
@@ -105,6 +111,7 @@ public class TournamentController {
 	}
 	
 	@PostMapping(value = "/tournaments/teams/add")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<?> addTeamToTournament(@RequestBody(required = true)Team team,
 												 @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = tournamentService.addTeamToTournament(team, tournament);
@@ -115,6 +122,7 @@ public class TournamentController {
 	}
 	
 	@DeleteMapping(value = "/tournaments/teams/remove")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<?> removeTeamFromTournament(@RequestBody(required = true)Team team,
 													  @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = tournamentService.removeTeamFromTournament(team, tournament);

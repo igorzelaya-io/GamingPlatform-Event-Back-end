@@ -27,6 +27,7 @@ import com.d1gaming.library.team.TeamInviteRequest;
 @RestController
 @CrossOrigin(origins = "localhost:4200")
 @RequestMapping(value = "/teamsapi")
+@PreAuthorize("permitAll()")
 public class TeamController {
 
 	@Autowired
@@ -111,6 +112,7 @@ public class TeamController {
 	}
 	
 	@DeleteMapping(value = "/teams/ban")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> banTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
 		String response = teamService.banTeamById(teamId);
 		if(response.equals("Team not found.")) {
@@ -125,6 +127,7 @@ public class TeamController {
 	}
 	
 	@DeleteMapping(value= "/teams/update")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('PLAYER')")
 	public ResponseEntity<?> deleteTeamField(@RequestParam(required = true)String teamId,
 											 @RequestParam(required = true)String teamField) throws InterruptedException, ExecutionException{
 		String response = teamService.deleteUserField(teamId, teamField);

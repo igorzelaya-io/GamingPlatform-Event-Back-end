@@ -3,7 +3,6 @@ package com.d1gaming.event.tournament;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -245,7 +244,7 @@ public class TournamentService {
 	
 	private void addModeratorRoleToUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = getUserReference(user.getUserId());
-		Set<Role> userRoleLs = user.getUserRoles();
+		List<Role> userRoleLs = user.getUserRoles();
 		Role role = new Role(Role.TOURNEY_ADMIN);
 		if(userRoleLs.contains(role)) {
 			return;
@@ -259,7 +258,7 @@ public class TournamentService {
 	
 	private void removeModeratorRoleFromUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getUserReference(user.getUserId());
-		Set<Role> userRoleLs = user.getUserRoles();
+		List<Role> userRoleLs = user.getUserRoles();
 		Role role = new Role(Role.TOURNEY_ADMIN);
 		if(userRoleLs.contains(role)) {
 			userRoleLs.remove(role);

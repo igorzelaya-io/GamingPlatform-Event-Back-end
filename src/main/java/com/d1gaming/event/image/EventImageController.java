@@ -22,6 +22,7 @@ import com.d1gaming.library.image.ImageModel;
 @RestController
 @CrossOrigin( origins = "localhost:4200")
 @RequestMapping( value = "/eventimagesapi")
+@PreAuthorize("permitAll()")
 public class EventImageController {
 	
 	@Autowired

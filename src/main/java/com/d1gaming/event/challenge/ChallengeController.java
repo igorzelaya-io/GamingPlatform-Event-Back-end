@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,12 +23,12 @@ import com.d1gaming.library.challenge.Challenge;
 
 @RestController
 @RequestMapping(value  = "/challengesapi")
+@CrossOrigin(origins="localhost:4200")
+@PreAuthorize("permitAll()")
 public class ChallengeController {
 
 	@Autowired
 	private ChallengeService challengeServ;
-	
-//	TODO: PreAuthorize API ENDPOINTS.
 	
 	@GetMapping(value = "challenges/search", params="challengeId")
 	public ResponseEntity<Object> getChallengeById(@RequestParam(required = true)final String challengeId) throws InterruptedException, ExecutionException{
@@ -62,7 +63,7 @@ public class ChallengeController {
 	
 	}
 	
-	@PostMapping(value = "/challenges/save", params = "userMap, userAdminId")
+	@PostMapping(value = "/challenges/save")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<Object> postChallenge(@RequestParam(required = true) Map<String,Object> userMap , 
 												@RequestParam(required = true) String userAdminId, 
@@ -75,7 +76,7 @@ public class ChallengeController {
 	}
 
 	@DeleteMapping("/challenges")
-	@PreAuthorize("hasRole('CHALLENGE_MODERATOR') or hasRole('ADMIN')")
+	@PreAuthorize("hasRole('CHALLENGE_ADMIN') or hasRole('ADMIN')")
 	public ResponseEntity<Object> deleteChallengeById(@RequestParam(required = true)String challengeId, 
 													  @RequestParam(required = false)String challengeField) throws InterruptedException, ExecutionException{
 		if(challengeField != null) {
@@ -93,7 +94,7 @@ public class ChallengeController {
 	}
 	
 	@PutMapping("/challenges/update")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('CHALLENGE_MODERATOR')")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('CHALLENGE_ADMIN')")
 	public ResponseEntity<Object> updateChallenge(@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
 		String response = challengeServ.updateChallenge(challenge);
 		if(response.equals("Challenge not found.")) {
@@ -103,7 +104,7 @@ public class ChallengeController {
 	}
 	
 	@PutMapping(value = "/challenges/update",  params = "challengeId, challengeField, replaceValue")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('CHALLENGE_MODERATOR')")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('CHALLENGE_ADMIN')")
 	public ResponseEntity<Object> upadateChallengeField(@RequestParam(required = true)String challengeId, 
 														@RequestParam(required = true)String challengeField, 
 														@RequestParam(required = true)String replaceValue) throws InterruptedException, ExecutionException{
