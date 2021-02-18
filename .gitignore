@@ -32,5 +32,5 @@ build/
 ### VS Code ###
 .vscode/
 application.properties
-/src/main/resources/static/d1gamingapp-firebase-adminsdk-2rph3-8ad7753499.json
+/src/main/resources/static/d1gamingapp-firebase-adminsdk-2rph3-23a26d8a46.json
 .DS_Store
