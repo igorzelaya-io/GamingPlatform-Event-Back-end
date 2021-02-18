@@ -9,7 +9,10 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,7 +22,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.d1gaming.event.tournament.TournamentService;
-import com.google.common.net.HttpHeaders;
 
 @Component
 public class JwtTokenFilter extends OncePerRequestFilter{
@@ -30,14 +32,24 @@ public class JwtTokenFilter extends OncePerRequestFilter{
 	@Autowired
 	private TournamentService tournamentService;
 	
+	private Logger logger = LoggerFactory.getLogger(JwtTokenFilter.class);
+	
 	//Get authorization header and validate it.
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, 
 									HttpServletResponse response, 
 									FilterChain chain)throws ServletException, IOException, NullPointerException {
 		
-		final String jwtHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-		if(!StringUtils.hasText(jwtHeader) && !jwtHeader.startsWith("Bearer ")) {
+		String jwtHeader = null;
+		try {
+			jwtHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+			if(!StringUtils.hasText(jwtHeader) && !jwtHeader.startsWith("Bearer ")) {
+				chain.doFilter(request, response);
+				return;
+			}
+		}
+		catch(NullPointerException e) {
+			logger.info("Accessing public Endpoint.");
 			chain.doFilter(request, response);
 			return;
 		}
