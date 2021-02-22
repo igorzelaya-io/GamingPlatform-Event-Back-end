@@ -16,7 +16,7 @@ import com.google.cloud.firestore.FirestoreOptions;
 @Service
 public class EventFirestoreInitialize {
 
-	@Value("classpath:static/d1gamingapp-1822bf4c6394.json")
+	@Value("classpath:static/d1gamingapp-firebase-adminsdk-s301t-3c79b299b4.json")
 	Resource resourceFile;
 	
 	@PostConstruct
