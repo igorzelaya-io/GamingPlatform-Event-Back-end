@@ -69,15 +69,9 @@ public class TeamController {
 			ImageModel teamImage = new ImageModel(file.getOriginalFilename(), file.getContentType(),
 													file.getBytes());
 			String response = teamService.postTeamWithImage(team, teamImage);
-			if(response.equals("Team could not be created.")) {
-				return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
-			}
 			return new ResponseEntity<>(response, HttpStatus.OK);
 		}
 		String response = teamService.postTeam(team);			
-		if(response.equals("Team could not be created.")) {
-			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
-		}
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	

@@ -15,6 +15,7 @@ import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
 import com.d1gaming.library.team.TeamStatus;
 import com.d1gaming.library.user.User;
+import com.d1gaming.library.user.UserStatus;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
@@ -47,6 +48,15 @@ public class TeamService {
 		DocumentReference teamReference = getTeamReference(teamId);
 		DocumentSnapshot teamSnapshot = teamReference.get().get();
 		if(teamSnapshot.exists() && teamSnapshot.toObject(Team.class).getTeamStatus().equals(TeamStatus.ACTIVE)) {
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean isActiveUser(String userId) throws InterruptedException, ExecutionException {
+		DocumentReference userReference = firestore.collection("user").document(userId);
+		DocumentSnapshot userSnapshot = userReference.get().get();
+		if(userSnapshot.exists() && userSnapshot.toObject(User.class).getUserStatusCode().equals(UserStatus.ACTIVE)) {
 			return true;
 		}
 		return false;
@@ -103,24 +113,30 @@ public class TeamService {
 	public String postTeam(Team team) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
-		DocumentSnapshot snapshot = reference.get().get();
-		snapshot.toObject(Team.class).setTeamId(teamId);
-		if(snapshot.exists()) {
-			return "Team with ID: '" + teamId  + "' has been created.";
-		}
-		return "Team could not be created.";
+		WriteBatch batch = firestore.batch();
+		batch.update(reference, "teamId", teamId);
+		batch.update(reference, "teamStatus", TeamStatus.ACTIVE);
+		List<WriteResult> results = batch.commit().get();
+		results
+			.stream()
+			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		return "Team created";
 	}
 	
 	public String postTeamWithImage(Team team, ImageModel teamImage) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
 		DocumentSnapshot snapshot = reference.get().get();
-		snapshot.toObject(Team.class).setTeamId(teamId);
+		WriteBatch batch = firestore.batch();
+		batch.update(reference, "teamStatus", TeamStatus.ACTIVE);
+		batch.update(reference, "teamId", teamId);
+		List<WriteResult> results = batch.commit().get();
+		results
+			.stream()
+			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		
 		eventImagesService.saveTeamImage(teamId, teamImage);
-		if(snapshot.exists()) {
-			return "Team with ID: '" +teamId + "' was created.";
-		}
-		return "Team could not be created.";
+		return "Team created.";
 	}
 	
 	//Delete Team by its ID. In reality this method just changes a Team's Status to INACTIVE.
@@ -245,7 +261,7 @@ public class TeamService {
 	}
 	
 	public String sendTeamInvite(TeamInviteRequest request) throws InterruptedException, ExecutionException{
-		//if(userService.getUserReference(request.getRequestedUser().getUserId()) != null && isActive(request.getTeamRequest().getTeamId()))  {
+		if(isActiveUser(request.getRequestedUser().getUserId()) && isActive(request.getTeamRequest().getTeamId()))  {
 			List<TeamInviteRequest>  userRequests = request.getRequestedUser().getUserTeamRequests();
 			DocumentReference reference = firestore.collection("users").document(request.getRequestedUser().getUserId());
 			userRequests.add(request);
@@ -261,7 +277,7 @@ public class TeamService {
 				return "Invite sent successfully.";
 			}
 			return "Invite could not be sent.";
-		//}
-		//return "Not found.";
+		}
+		return "Not found.";
 	}
 }	
