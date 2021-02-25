@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
+import com.d1gaming.library.user.User;
 
 @RestController
 @CrossOrigin(origins = "localhost:4200")
@@ -59,6 +60,15 @@ public class TeamController {
 			return new ResponseEntity<>(teamLs, HttpStatus.NO_CONTENT);
 		}
 		return new ResponseEntity<>(teamLs, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/teams/users")
+	public ResponseEntity<?> getAllUsersInTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
+		List<User> usersInTeam = teamService.getAllUsersInTeam(teamId);
+		if(usersInTeam.isEmpty()) {
+			return new ResponseEntity<>(usersInTeam, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<>(usersInTeam, HttpStatus.OK);
 	}
 	
 	@PostMapping(value = "/teams/create")

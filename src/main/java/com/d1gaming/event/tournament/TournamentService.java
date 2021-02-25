@@ -8,7 +8,6 @@ import java.util.concurrent.ExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.d1gaming.event.team.TeamService;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -35,9 +34,6 @@ public class TournamentService {
 	
 	@Autowired
 	private Firestore firestore;
-	
-	@Autowired
-	private TeamService teamService;
 	
 	private CollectionReference getTournamentsCollection() {
 		return firestore.collection(this.TOURNAMENTS_COLLECTION);

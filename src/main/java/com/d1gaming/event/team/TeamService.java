@@ -110,6 +110,15 @@ public class TeamService {
 		return teamLs;
 	}
 	
+	public List<User> getAllUsersInTeam(String teamId) throws InterruptedException, ExecutionException{
+		if(isActive(teamId)) {
+			DocumentReference teamReference = getTeamReference(teamId);
+			DocumentSnapshot teamSnapshot = teamReference.get().get();
+			return teamSnapshot.toObject(Team.class).getTeamUsers(); 
+		}
+		return new ArrayList<>();
+	}
+	
 	public String postTeam(Team team) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
