@@ -109,26 +109,4 @@ public class TournamentController {
 		}
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
-	
-	@PostMapping(value = "/tournaments/teams/add")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
-	public ResponseEntity<?> addTeamToTournament(@RequestBody(required = true)Team team,
-												 @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
-		String response = tournamentService.addTeamToTournament(team, tournament);
-		if(response.equals("Not found.")) {
-			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-		}
-		return new ResponseEntity<>(response, HttpStatus.OK);
-	}
-	
-	@DeleteMapping(value = "/tournaments/teams/remove")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
-	public ResponseEntity<?> removeTeamFromTournament(@RequestBody(required = true)Team team,
-													  @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
-		String response = tournamentService.removeTeamFromTournament(team, tournament);
-		if(response.equals("Not found.")) {
-			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-		}
-		return new ResponseEntity<>(response, HttpStatus.OK);
-	}
 }

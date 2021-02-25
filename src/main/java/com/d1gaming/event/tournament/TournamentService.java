@@ -207,41 +207,6 @@ public class TournamentService {
 		return "Not found.";
 	}
 	
-	public String addTeamToTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId()) && teamService.isActive(team.getTeamId())) {
-			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
-			List<Team> tournamentTeamList = tournament.getTournamentTeams();
-			WriteBatch batch = firestore.batch();
-			tournamentTeamList.add(team);
-			batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
-			batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
-			List<WriteResult> results = batch.commit().get();
-			results.forEach(result -> 
-								System.out.println("Update Time: " +result.getUpdateTime()));
-			return "Team added successfully to tournament.";
-		}
-		return "Not found.";
-	}
-	
-	public String removeTeamFromTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId()) && teamService.isActive(team.getTeamId())) {
-			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
-			List<Team> tournamentTeamList = tournament.getTournamentTeams();
-			if(tournamentTeamList.contains(team)) {
-				int teamIndex = tournamentTeamList.indexOf(team);
-				tournamentTeamList.remove(teamIndex);
-				WriteBatch batch = firestore.batch();
-				batch.update(tournamentReference, "tournamentTeams", tournamentTeamList);
-				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
-				List<WriteResult> results = batch.commit().get();
-				results.forEach(result -> 
-						System.out.println("Update Time: " + result.getUpdateTime()));
-				return "Team removed successfully.";
-			}
-		}
-		return "Not found.";
-	}
-	
 	private void addModeratorRoleToUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = getUserReference(user.getUserId());
 		List<Role> userRoleLs = user.getUserRoles();

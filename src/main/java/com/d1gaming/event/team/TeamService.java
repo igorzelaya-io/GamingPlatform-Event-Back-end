@@ -126,7 +126,6 @@ public class TeamService {
 	public String postTeamWithImage(Team team, ImageModel teamImage) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
-		DocumentSnapshot snapshot = reference.get().get();
 		WriteBatch batch = firestore.batch();
 		batch.update(reference, "teamStatus", TeamStatus.ACTIVE);
 		batch.update(reference, "teamId", teamId);
@@ -134,7 +133,6 @@ public class TeamService {
 		results
 			.stream()
 			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-		
 		eventImagesService.saveTeamImage(teamId, teamImage);
 		return "Team created.";
 	}
