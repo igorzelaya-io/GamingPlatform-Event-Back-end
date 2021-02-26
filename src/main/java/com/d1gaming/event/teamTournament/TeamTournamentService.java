@@ -107,6 +107,9 @@ public class TeamTournamentService {
 	public String addTeamToTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId())) {
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
+			ApiFuture<WriteResult> addedDocument = getTeamCollectionReference().document(team.getTeamId())
+															.collection(TEAM_TOURNAMENT_SUBCOLLECTION).document(tournament.getTournamentId()).set(tournament);
+			System.out.println("Added Document: " + addedDocument.get().getUpdateTime());
 			List<Team> tournamentTeamList = tournament.getTournamentTeams();
 			WriteBatch batch = firestore.batch();
 			tournamentTeamList.add(team);
@@ -124,6 +127,9 @@ public class TeamTournamentService {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId())) {
 			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
 			List<Team> tournamentTeamList = tournament.getTournamentTeams();
+			ApiFuture<WriteResult> deletedDocument = getTeamCollectionReference().document(team.getTeamId())
+																				 .collection(TEAM_TOURNAMENT_SUBCOLLECTION).document(tournament.getTournamentId()).delete();
+			System.out.println("Deleted Document: " + deletedDocument.get().getUpdateTime());
 			if(tournamentTeamList.contains(team)) {
 				int teamIndex = tournamentTeamList.indexOf(team);
 				tournamentTeamList.remove(teamIndex);

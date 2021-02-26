@@ -49,8 +49,8 @@ public class TeamTournamentController {
 		return new ResponseEntity<>(tournament.get(), HttpStatus.OK);
 	}
 	
-	@PostMapping(value = "/tournaments/teams/add")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
+	@PostMapping(value = "/teamTournaments/add")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")
 	public ResponseEntity<?> addTeamToTournament(@RequestBody(required = true)Team team,
 												 @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = teamTournamentService.addTeamToTournament(team, tournament);
@@ -60,8 +60,8 @@ public class TeamTournamentController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
-	@DeleteMapping(value = "/tournaments/teams/remove")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
+	@DeleteMapping(value = "/teamTournaments/remove")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")
 	public ResponseEntity<?> removeTeamFromTournament(@RequestBody(required = true)Team team,
 													  @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = teamTournamentService.removeTeamFromTournament(team, tournament);
