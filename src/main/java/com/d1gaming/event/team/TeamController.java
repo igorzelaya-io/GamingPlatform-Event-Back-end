@@ -74,19 +74,29 @@ public class TeamController {
 	@PostMapping(value = "/teams/create")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> createTeam(@RequestBody(required = true) Team team,
+										@RequestBody(required = true) User user,
 										@RequestBody(required = false) MultipartFile file) throws InterruptedException, ExecutionException, IOException{	
 		if(file != null) {
 			ImageModel teamImage = new ImageModel(file.getOriginalFilename(), file.getContentType(),
 													file.getBytes());
-			String response = teamService.postTeamWithImage(team, teamImage);
+			if(teamService.getTeamByName(team.getTeamName()).isPresent()) {
+				return new ResponseEntity<>("Team name is already in use.", HttpStatus.BAD_REQUEST);
+			}
+			String response = teamService.postTeamWithImage(team, user ,teamImage);
 			return new ResponseEntity<>(response, HttpStatus.OK);
 		}
-		String response = teamService.postTeam(team);			
+		if(teamService.getTeamByName(team.getTeamName()) != null){
+			return new ResponseEntity<>("Team name is already in use.", HttpStatus.BAD_REQUEST);
+		}
+		if(teamService.getTeamByEmail(team.getTeamEmail()) != null) {
+			return new ResponseEntity<>("Team email is already in use.", HttpStatus.BAD_REQUEST);
+		}
+		String response = teamService.postTeam(team, user);			
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
 	@PostMapping(value = "/teams/invite")
-	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+	@PreAuthorize("hasRole('TEAM_ADMIN') or hasRole('ADMIN')")
 	public ResponseEntity<?> sendTeamInvite(@RequestBody TeamInviteRequest teamInvite) throws InterruptedException, ExecutionException{
 		String response = teamService.sendTeamInvite(teamInvite);
 		if(response.equals("User not found.")) {
@@ -101,7 +111,7 @@ public class TeamController {
 	}
 	
 	@DeleteMapping(value = "/teams/delete")
-	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+	@PreAuthorize("hasRole('TEAM_ADMIN') or hasRole('ADMIN')")
 	public ResponseEntity<?> deleteTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
 		String response = teamService.deleteTeamById(teamId);
 		if(response.equals("Team not found.")){
@@ -116,7 +126,7 @@ public class TeamController {
 	}
 	
 	@DeleteMapping(value = "/teams/ban")
-	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<?> banTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
 		String response = teamService.banTeamById(teamId);
 		if(response.equals("Team not found.")) {
@@ -131,10 +141,10 @@ public class TeamController {
 	}
 	
 	@DeleteMapping(value= "/teams/update")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('PLAYER')")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TEAM_ADMIN')")
 	public ResponseEntity<?> deleteTeamField(@RequestParam(required = true)String teamId,
 											 @RequestParam(required = true)String teamField) throws InterruptedException, ExecutionException{
-		String response = teamService.deleteUserField(teamId, teamField);
+		String response = teamService.deleteTeamField(teamId, teamField);
 		if(response.equals("Team not found.")) {
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
@@ -147,6 +157,7 @@ public class TeamController {
 	}
 	
 	@PutMapping(value = "/teams/update")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TEAM_ADMIN')")
 	public ResponseEntity<?> updateTeam(@RequestBody Team newTeam) throws InterruptedException, ExecutionException{
 		String response = teamService.updateTeam(newTeam);
 		if(response.equals("Not found.")) {
@@ -156,6 +167,7 @@ public class TeamController {
 	}
 	
 	@PutMapping(value = "/teams/update/field")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('TEAM_ADMIN')")
 	public ResponseEntity<?> updateTeamField(@RequestParam(required = true)String teamId,
 											 @RequestParam(required = true)String teamField,
 											 @RequestParam(required = true)String replaceValue) throws InterruptedException, ExecutionException{

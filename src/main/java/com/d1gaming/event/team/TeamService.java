@@ -5,12 +5,14 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.d1gaming.event.image.EventImageService;
 import com.d1gaming.library.image.ImageModel;
+import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
 import com.d1gaming.library.team.TeamStatus;
@@ -23,7 +25,6 @@ import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.Query;
-import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
@@ -41,6 +42,10 @@ public class TeamService {
 	
 	private CollectionReference getTeamsCollection() {
 		return firestore.collection(this.TEAM_COLLECTION);
+	}
+	
+	private CollectionReference getUsersCollection() {
+		return firestore.collection("users");
 	}
 	
 	
@@ -95,19 +100,25 @@ public class TeamService {
 		return null;
 	}
 	
+	public Optional<Team> getTeamByEmail(String teamEmail) throws InterruptedException, ExecutionException{
+		Query query = getTeamsCollection().whereEqualTo("teamEmail", teamEmail);
+		QuerySnapshot querySnapshot = query.get().get();
+		if(!querySnapshot.isEmpty()) {
+			List<Team> teamList = querySnapshot.toObjects(Team.class);
+			for(Team currTeam : teamList) {
+				return Optional.of(currTeam);
+			}
+		}
+		return null;
+	}	
+		
 	//Get all teams available in a collection.
 	public List<Team> getAllTeams() throws InterruptedException, ExecutionException{
 		ApiFuture<QuerySnapshot> collection = getTeamsCollection().get();
-		List<QueryDocumentSnapshot> snapshot = collection.get().getDocuments();
-		List<Team> teamLs = new ArrayList<>();
-		//If Snapshot contains documents(Teams).
-		if(!snapshot.isEmpty()) {
-			//Add each Document to Team List.
-			snapshot.forEach( document -> {
-				teamLs.add(document.toObject(Team.class));
-			});
-		}
-		return teamLs;
+		return collection.get().getDocuments()
+				.stream()
+				.map(document -> document.toObject(Team.class))
+				.collect(Collectors.toList());
 	}
 	
 	public List<User> getAllUsersInTeam(String teamId) throws InterruptedException, ExecutionException{
@@ -119,12 +130,16 @@ public class TeamService {
 		return new ArrayList<>();
 	}
 	
-	public String postTeam(Team team) throws InterruptedException, ExecutionException {
+	public String postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
+		team.setTeamChallenges(new ArrayList<>());
+		team.setTeamTournaments(new ArrayList<>());
+		team.setTeamStatus(TeamStatus.ACTIVE);
+		team.setTeamLeader(teamLeader);	
+		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
 		WriteBatch batch = firestore.batch();
 		batch.update(reference, "teamId", teamId);
-		batch.update(reference, "teamStatus", TeamStatus.ACTIVE);
 		List<WriteResult> results = batch.commit().get();
 		results
 			.stream()
@@ -132,14 +147,17 @@ public class TeamService {
 		return "Team created";
 	}
 	
-	public String postTeamWithImage(Team team, ImageModel teamImage) throws InterruptedException, ExecutionException {
+	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
+		team.setTeamChallenges(new ArrayList<>());
+		team.setTeamTournaments(new ArrayList<>());
+		team.setTeamStatus(TeamStatus.ACTIVE);
+		team.setTeamLeader(teamLeader);
+		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
 		WriteBatch batch = firestore.batch();
-		batch.update(reference, "teamStatus", TeamStatus.ACTIVE);
 		batch.update(reference, "teamId", teamId);
-		List<WriteResult> results = batch.commit().get();
-		results
+		batch.commit().get()
 			.stream()
 			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
 		eventImagesService.saveTeamImage(teamId, teamImage);
@@ -186,7 +204,7 @@ public class TeamService {
 	}
 	
 	//Replace a team's given field by given replaceValue.
-	public String deleteUserField(String teamId, String teamField) throws InterruptedException, ExecutionException {
+	public String deleteTeamField(String teamId, String teamField) throws InterruptedException, ExecutionException {
 		//Evaluate if document exists.
 		if( isActive(teamId) && teamField != "teamName") {
 			DocumentReference reference = getTeamsCollection().document(teamId);
@@ -286,5 +304,18 @@ public class TeamService {
 			return "Invite could not be sent.";
 		}
 		return "Not found.";
+	}
+	
+	private void addTeamAdminRoleToUser(User user) throws InterruptedException, ExecutionException {
+		if(isActiveUser(user.getUserId())) {
+			DocumentReference userReference = getUsersCollection().document(user.getUserId());
+			WriteBatch batch = firestore.batch();
+			List<Role> currentUserRolesList = user.getUserRoles();
+			currentUserRolesList.add(new Role("TEAM_ADMIN"));
+			batch.update(userReference, "userRoles", currentUserRolesList);
+			batch.commit().get()
+					.stream()
+					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));;
+		}
 	}
 }	
