@@ -81,6 +81,10 @@ public class TeamService {
 		return getTeamsCollection().document(teamId);
 	}
 	
+	public DocumentReference getUserReference(String userId) {
+		return getUsersCollection().document(userId);
+	}
+	
 	//Get a Team by its Id.
 	public Optional<Team> getTeamById(String teamId) throws InterruptedException, ExecutionException {
 		if(isActive(teamId)) {
@@ -165,30 +169,29 @@ public class TeamService {
 	}
 	
 	//Delete Team by its ID. In reality this method just changes a Team's Status to INACTIVE.
-	public String deleteTeamById(String teamId) throws InterruptedException, ExecutionException {
+	public String deleteTeamById(Team team) throws InterruptedException, ExecutionException {
 		//Evaluate if document exists in collection.
-		if(isActive(teamId)) {
-			DocumentReference reference = getTeamReference(teamId);
+		if(isActive(team.getTeamId())) {
+			DocumentReference reference = getTeamReference(team.getTeamId());
 			WriteBatch batch = firestore.batch();
+			User user = team.getTeamLeader();
+			removeTeamAdminRoleFromUser(user);
 			//Change teamStatus to Inactive.
 			batch.update(reference, "teamStatus", TeamStatus.INACTIVE);
 			List<WriteResult> results = batch.commit().get();
 			results.forEach(result -> 
 				System.out.println("Update Time: " + result.getUpdateTime())
 			);
-			//Evaluate if update did actually take place.
-			DocumentSnapshot snapshot = reference.get().get();
-			if(snapshot.toObject(Team.class).getTeamStatus().equals(TeamStatus.INACTIVE)) {
-				return "Team with ID: '" + teamId + "' was deleted.";
-			}
-			return "Team could not be deleted.";
+			return "Team with ID: '" + team.getTeamId() + "' was deleted.";
 		}
 		return "Team not found.";
 	}
 	
-	public String banTeamById(String teamId) throws InterruptedException, ExecutionException {
-		if(isActive(teamId)) {
-			DocumentReference teamReference = getTeamReference(teamId);
+	public String banTeamById(Team team) throws InterruptedException, ExecutionException {
+		if(isActive(team.getTeamId())) {
+			DocumentReference teamReference = getTeamReference(team.getTeamId());
+			User currTeamLeader = team.getTeamLeader();
+			removeTeamAdminRoleFromUser(currTeamLeader);
 			WriteBatch batch = firestore.batch();
 			batch.update(teamReference, "teamStatus", TeamStatus.BANNED);
 			List<WriteResult> results = batch.commit().get();
@@ -215,11 +218,7 @@ public class TeamService {
 			results.forEach(result -> 
 				System.out.println("Update Time: " + result.getUpdateTime())
 			);
-			//Evaluate if delete changes did actually take place.
-			if(reference.get().get().get(teamField) == null) {
-				return "Team field deleted successfully";
-			}		
-			return "Delete failed.";
+			return "Field deleted successfully.";
 		}
 		return "Team not found.";
 	}
@@ -269,10 +268,10 @@ public class TeamService {
 				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
 					DocumentSnapshot snapshot = transaction.get(teamReference).get();
 					User teamModerator = (User) snapshot.get("teamModerator");
-					//DocumentReference userReference = userService.getUserReference(teamModerator.getUserId());
+					DocumentReference userReference = getUserReference(teamModerator.getUserId());
 					double tokens = teamModerator.getUserTokens();
 					if(tokens >= 100) {
-					//	transaction.update(userReference, "userTokens", FieldValue.increment(-100));
+						transaction.update(userReference, "userTokens", FieldValue.increment(-100));
 						transaction.update(teamReference, "teamName", newTeamName);
 						return "Team name updated to: '" + newTeamName + "'";
 					}
@@ -311,11 +310,29 @@ public class TeamService {
 			DocumentReference userReference = getUsersCollection().document(user.getUserId());
 			WriteBatch batch = firestore.batch();
 			List<Role> currentUserRolesList = user.getUserRoles();
-			currentUserRolesList.add(new Role("TEAM_ADMIN"));
+			currentUserRolesList.add(new Role(Role.TEAM_ADMIN));
 			batch.update(userReference, "userRoles", currentUserRolesList);
 			batch.commit().get()
 					.stream()
 					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));;
+		}
+	}
+	
+	private void removeTeamAdminRoleFromUser(User user) throws InterruptedException, ExecutionException {
+		if(isActiveUser(user.getUserId())) {
+			DocumentReference userReference = getUsersCollection().document(user.getUserId());
+			WriteBatch batch = firestore.batch();
+			List<Role> currentUserRoles = user.getUserRoles();
+			Role role = new Role( Role.TEAM_ADMIN);
+			if(currentUserRoles.contains(role)) {				
+				int index = currentUserRoles.indexOf(role);
+				currentUserRoles.remove(index);
+				batch.update(userReference, "userRoles", currentUserRoles);
+				batch.commit().get()
+				.stream()
+				.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			}
+			return;
 		}
 	}
 }	

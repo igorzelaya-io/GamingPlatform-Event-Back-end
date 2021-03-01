@@ -112,8 +112,8 @@ public class TeamController {
 	
 	@DeleteMapping(value = "/teams/delete")
 	@PreAuthorize("hasRole('TEAM_ADMIN') or hasRole('ADMIN')")
-	public ResponseEntity<?> deleteTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
-		String response = teamService.deleteTeamById(teamId);
+	public ResponseEntity<?> deleteTeam(@RequestBody(required = true)Team team) throws InterruptedException, ExecutionException{
+		String response = teamService.deleteTeamById(team);
 		if(response.equals("Team not found.")){
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
@@ -127,8 +127,8 @@ public class TeamController {
 	
 	@DeleteMapping(value = "/teams/ban")
 	@PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<?> banTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
-		String response = teamService.banTeamById(teamId);
+	public ResponseEntity<?> banTeam(@RequestBody(required = true)Team team) throws InterruptedException, ExecutionException{
+		String response = teamService.banTeamById(team);
 		if(response.equals("Team not found.")) {
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
