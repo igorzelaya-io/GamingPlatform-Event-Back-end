@@ -95,11 +95,14 @@ public class TeamService {
 		return null;
 	}
 	
-	public Optional<Team> getTeamByName(String teamName) throws InterruptedException, ExecutionException {
-		DocumentReference teamReference = getTeamReferenceByName(teamName);		
-		if(isActive(teamReference.getId())) {
-			DocumentSnapshot teamSnapshot = teamReference.get().get();
-			return Optional.of(teamSnapshot.toObject(Team.class));
+	public Optional<Team> getTeamByName(String teamName) throws InterruptedException, ExecutionException {	
+		Query query = getTeamsCollection().whereEqualTo("teamName", teamName);
+		QuerySnapshot querySnapshot = query.get().get();
+		if(!querySnapshot.isEmpty()) {
+			List<Team> teamList = querySnapshot.toObjects(Team.class);
+			for(Team currTeam : teamList) {
+				return Optional.of(currTeam);
+			}
 		}
 		return null;
 	}
