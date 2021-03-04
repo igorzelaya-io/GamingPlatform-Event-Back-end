@@ -1,3 +1,4 @@
+
 package com.d1gaming.event.team;
 
 import java.io.IOException;
@@ -18,10 +19,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.team.Team;
+import com.d1gaming.library.team.TeamCreationRequest;
 import com.d1gaming.library.team.TeamInviteRequest;
 import com.d1gaming.library.user.User;
 
@@ -73,25 +74,23 @@ public class TeamController {
 	
 	@PostMapping(value = "/teams/create")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<?> createTeam(@RequestBody(required = true) Team team,
-										@RequestBody(required = true) User user,
-										@RequestBody(required = false) MultipartFile file) throws InterruptedException, ExecutionException, IOException{	
-		if(file != null) {
-			ImageModel teamImage = new ImageModel(file.getOriginalFilename(), file.getContentType(),
-													file.getBytes());
-			if(teamService.getTeamByName(team.getTeamName()).isPresent()) {
+	public ResponseEntity<?> createTeam(@RequestBody(required = true) TeamCreationRequest team) throws InterruptedException, ExecutionException, IOException{	
+		if(team.getTeamImage() != null) {
+			ImageModel teamImage = new ImageModel(team.getTeamImage().getOriginalFilename(), team.getTeamImage().getContentType(),
+													team.getTeamImage().getBytes());
+			if(teamService.getTeamByName(team.getTeamToRegister().getTeamName()) != null) {
 				return new ResponseEntity<>("Team name is already in use.", HttpStatus.BAD_REQUEST);
 			}
-			String response = teamService.postTeamWithImage(team, user ,teamImage);
+			String response = teamService.postTeamWithImage(team.getTeamToRegister(), team.getTeamModerator() ,teamImage);
 			return new ResponseEntity<>(response, HttpStatus.OK);
 		}
-		if(teamService.getTeamByName(team.getTeamName()) != null){
+		if(teamService.getTeamByName(team.getTeamToRegister().getTeamName()) != null){
 			return new ResponseEntity<>("Team name is already in use.", HttpStatus.BAD_REQUEST);
 		}
-		if(teamService.getTeamByEmail(team.getTeamEmail()) != null) {
+		if(teamService.getTeamByEmail(team.getTeamToRegister().getTeamEmail()) != null) {
 			return new ResponseEntity<>("Team email is already in use.", HttpStatus.BAD_REQUEST);
 		}
-		String response = teamService.postTeam(team, user);			
+		String response = teamService.postTeam(team.getTeamToRegister(), team.getTeamModerator());			
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
