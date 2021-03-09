@@ -40,7 +40,7 @@ public class UpcomingTournamentController {
 		return new ResponseEntity<>("Tournament not found.", HttpStatus.NOT_FOUND);
 	}
 	
-	@GetMapping(value="/upcomingTournaments/search")
+	@GetMapping(value="/upcomingTournaments/search", params="tournamentName")
 	public ResponseEntity<?> getUpcomingTournamentByName(@RequestParam(required = true)String tournamentName) throws InterruptedException, ExecutionException{
 		Optional<Tournament> tournament = upcomingTournamentService.getTournamentByName(tournamentName);
 		if(tournament != null) {
