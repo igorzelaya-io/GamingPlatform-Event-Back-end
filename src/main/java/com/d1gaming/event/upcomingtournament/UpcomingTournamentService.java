@@ -1,4 +1,4 @@
-package com.d1gaming.event.tournament;
+package com.d1gaming.event.upcomingtournament;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +14,6 @@ import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
-import com.d1gaming.library.user.UserDetailsImpl;
 import com.d1gaming.library.user.UserStatus;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
@@ -29,29 +28,30 @@ import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
 
 @Service
-public class TournamentService {
+public class UpcomingTournamentService {
 
-	private final String TOURNAMENTS_COLLECTION = "tournaments";
-	
 	@Autowired
 	private Firestore firestore;
 	
-	private CollectionReference getTournamentsCollection() {
-		return firestore.collection(this.TOURNAMENTS_COLLECTION);
+	private final String UPCOMING_TOURNAMENTS_COLLECTION = "upcoming_tournaments";
+	
+	
+	private CollectionReference getUpcomingTournamentsCollection() {
+		return firestore.collection(UPCOMING_TOURNAMENTS_COLLECTION);
 	}
 	
-	private DocumentReference getTournamentReference(String tournamentId) {
-		return getTournamentsCollection().document(tournamentId);
+	private DocumentReference getUpcomingTournamentReference(String upcomingTournamentId) {
+		return getUpcomingTournamentsCollection().document(upcomingTournamentId);
 	}
 	
 	private DocumentReference getUserReference(String userId) {
-		return firestore.collection("users").document(userId);
+		return getUpcomingTournamentsCollection().document(userId);
 	}
-	
-	private boolean isActiveTournament(String tournamentId) throws InterruptedException, ExecutionException {
-		DocumentReference tourneyReference = getTournamentReference(tournamentId);
-		DocumentSnapshot tourneySnapshot = tourneyReference.get().get();
-		if(tourneySnapshot.toObject(Tournament.class).getTournamentStatus().equals(TournamentStatus.ACTIVE) && tourneySnapshot.exists()) {
+
+	private boolean isActiveUpcomingTournament(String upcomingTournamentId) throws InterruptedException, ExecutionException {
+		DocumentReference tournamentReference = getUpcomingTournamentReference(upcomingTournamentId);
+		DocumentSnapshot tournamentSnapshot = tournamentReference.get().get();
+		if(tournamentSnapshot.exists() && tournamentSnapshot.toObject(Tournament.class).getTournamentStatus().equals(TournamentStatus.ACTIVE)) {
 			return true;
 		}
 		return false;
@@ -65,6 +65,7 @@ public class TournamentService {
 		}
 		return false;
 	}
+	
 	
 	public User getUserById(String userId) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = firestore.collection("users").document(userId);
@@ -87,41 +88,25 @@ public class TournamentService {
 		return null;
 	}
 	
-	public Optional<UserDetailsImpl> getUserDetailsByUserName(String userName) throws InterruptedException, ExecutionException{
-		Query query = firestore.collection("users").whereEqualTo("userName", userName);
-		QuerySnapshot querySnapshot = query.get().get();
-		if(!querySnapshot.isEmpty()) {
-			List<User> userList = querySnapshot.toObjects(User.class);
-			for(User currUser: userList) {
-				return Optional.of(UserDetailsImpl.build(currUser));
-			}
-		}
-		return null;
-	}
-	
 	public Optional<Tournament> getTournamentById(String tournamentId) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournamentId)) {
-			DocumentReference reference = getTournamentsCollection().document(tournamentId);
+		if(isActiveUpcomingTournament(tournamentId)) {
+			DocumentReference reference = getUpcomingTournamentsCollection().document(tournamentId);
 			DocumentSnapshot snapshot = reference.get().get();
 			return Optional.of(snapshot.toObject(Tournament.class));
 		}
 		return null;
 	}
 	
-	//Get all documents from a collection.
-	public List<Tournament> getAllTournaments() throws InterruptedException, ExecutionException{
-		//asynchronously retrieve all documents
-		ApiFuture<QuerySnapshot> future = getTournamentsCollection().get();
-		// future.get() blocks on response
+	public List<Tournament> getAllUpcomingTournaments() throws InterruptedException, ExecutionException{
+		ApiFuture<QuerySnapshot> future = getUpcomingTournamentsCollection().get();
 		return future.get().getDocuments()
 				.stream()
 				.map(document -> document.toObject(Tournament.class))
 				.collect(Collectors.toList());
 	}
 	
-	//Get a document By its ID.
-	public Optional<Tournament> getTournamentByName(String tournamentName) throws InterruptedException, ExecutionException {
-		ApiFuture<QuerySnapshot> snapshot = getTournamentsCollection().whereEqualTo("tournamentName", tournamentName).get();
+	public Optional<Tournament> getTournamentByName(String tournamentName) throws InterruptedException, ExecutionException{
+		ApiFuture<QuerySnapshot> snapshot = getUpcomingTournamentsCollection().whereEqualTo("tournamentName", tournamentName).get();
 		if(!snapshot.get().isEmpty()) {
 			List<QueryDocumentSnapshot> documents = snapshot.get().getDocuments();
 			return Optional.of(documents
@@ -132,19 +117,18 @@ public class TournamentService {
 		return null;
 	}
 	
-	public List<Team> getTournamentTeams(String tournamentId) throws InterruptedException, ExecutionException{
-		if(isActiveTournament(tournamentId)) {
-			DocumentReference tournamentReference = getTournamentReference(tournamentId);
+	public List<Team> getTournamentTeams(String tournamentId) throws InterruptedException, ExecutionException {
+		if(isActiveUpcomingTournament(tournamentId)) {
+			DocumentReference tournamentReference = getUpcomingTournamentReference(tournamentId);
 			DocumentSnapshot tournamentSnapshot = tournamentReference.get().get();
 			return tournamentSnapshot.toObject(Tournament.class).getTournamentTeams();
 		}
 		return new ArrayList<>();
 	}
 	
-	
 	public String postTournament(User user, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId())) {
-			DocumentReference reference = getTournamentsCollection().add(tournament).get();
+			DocumentReference reference = getUpcomingTournamentsCollection().add(tournament).get();
 			String documentId = reference.getId();
 			WriteBatch batch = firestore.batch();
 			batch.update(reference, "tournamentStatus", TournamentStatus.ACTIVE);
@@ -161,8 +145,8 @@ public class TournamentService {
 	}
 	
 	public String deleteTournament(Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId())) {
-			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
+		if(isActiveUpcomingTournament(tournament.getTournamentId())) {
+			DocumentReference tournamentReference = getUpcomingTournamentReference(tournament.getTournamentId());
 			User user = tournament.getTournamentModerator();
 			removeModeratorRoleFromUser(user);
 			WriteBatch batch = firestore.batch();
@@ -177,8 +161,8 @@ public class TournamentService {
 	}
 	
 	public String updateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId())) {
-			DocumentReference reference = getTournamentsCollection().document(tournament.getTournamentId());
+		if(isActiveUpcomingTournament(tournament.getTournamentId())) {
+			DocumentReference reference = getUpcomingTournamentsCollection().document(tournament.getTournamentId());
 			WriteBatch batch = firestore.batch();
 			batch.set(reference, tournament);
 			List<WriteResult> results = batch.commit().get();
@@ -189,8 +173,8 @@ public class TournamentService {
 	}
 	
 	public String deleteTournamentField(String tournamentId, String tournamentField) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournamentId)) {
-			DocumentReference reference = getTournamentReference(tournamentId);
+		if(isActiveUpcomingTournament(tournamentId)) {
+			DocumentReference reference = getUpcomingTournamentReference(tournamentId);
 			WriteBatch batch = firestore.batch();
 			batch.update(reference, tournamentField, FieldValue.delete());
 			List<WriteResult> results = batch.commit().get();

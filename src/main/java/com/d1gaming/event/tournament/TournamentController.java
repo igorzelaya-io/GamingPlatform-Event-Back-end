@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
-import com.d1gaming.library.user.User;
+import com.d1gaming.library.tournament.TournamentCreationRequest;
 
 @RestController
 @CrossOrigin(origins = "localhost:4200")
@@ -70,9 +70,8 @@ public class TournamentController {
 	
 	@PostMapping(value = "/tournaments/save" )
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<?> saveTournament(@RequestBody(required = true)User user, 
-											@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
-		String response = tournamentService.postTournament(user, tournament);	
+	public ResponseEntity<?> saveTournament(@RequestBody(required = true)TournamentCreationRequest tournament) throws InterruptedException, ExecutionException{
+		String response = tournamentService.postTournament(tournament.getTournamentUserModerator(), tournament.getTournamentToBeCreated());	
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
@@ -81,8 +80,8 @@ public class TournamentController {
 	
 	@DeleteMapping(value = "/tournaments/delete")
 	@PreAuthorize("hasRole('TOURNEY_ADMIN') or hasRole('ADMIN')")
-	public ResponseEntity<?> deleteTournament(@RequestParam(required = true) String tournamentId) throws InterruptedException, ExecutionException{
-		String response = tournamentService.deleteTournament(tournamentId);
+	public ResponseEntity<?> deleteTournament(@RequestBody(required = true) Tournament tournament) throws InterruptedException, ExecutionException{
+		String response = tournamentService.deleteTournament(tournament);
 		if(response.equals("Tournament not found.")) {
 			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
 		}
