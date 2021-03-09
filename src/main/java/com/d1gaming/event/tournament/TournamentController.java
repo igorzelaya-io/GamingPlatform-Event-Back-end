@@ -40,6 +40,24 @@ public class TournamentController {
 		return new ResponseEntity<>(tournamentLs, HttpStatus.OK);
 	}
 	
+	@GetMapping(value="/tournaments/upcoming")
+	public ResponseEntity<?> getAllTournamentsAfterOneWeek() throws InterruptedException, ExecutionException{
+		List<Tournament> tournamentsInOneWeek = tournamentService.getAllTournamentsAfterOneWeek();
+		if(tournamentsInOneWeek.isEmpty()) {
+			return new ResponseEntity<>(tournamentsInOneWeek, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<>(tournamentsInOneWeek, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/tournaments/now")
+	public ResponseEntity<?> getAllTournamentsNow() throws InterruptedException, ExecutionException{
+		List<Tournament> tournamentsNow = tournamentService.getAllTournamentsBeforeOneWeek();
+		if(tournamentsNow.isEmpty()) {
+			return new ResponseEntity<>(tournamentsNow, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<>(tournamentsNow, HttpStatus.OK);
+	}
+	
 	@GetMapping(value = "/tournaments/search", params="tournamentId")
 	public ResponseEntity<?> getTournamentById(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		Optional<Tournament> tournament = tournamentService.getTournamentById(tournamentId);

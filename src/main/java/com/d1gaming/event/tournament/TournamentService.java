@@ -1,6 +1,7 @@
 package com.d1gaming.event.tournament;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -114,6 +115,43 @@ public class TournamentService {
 		ApiFuture<QuerySnapshot> future = getTournamentsCollection().get();
 		// future.get() blocks on response
 		return future.get().getDocuments()
+				.stream()
+				.map(document -> document.toObject(Tournament.class))
+				.collect(Collectors.toList());
+	}
+	
+//	public List<Tournament> getMostPopularCallOfDutyTournaments(){
+//		
+//	}
+//	
+//	public List<Tournament> getMostPopularFifaTournaments(){
+//		
+//	}
+//	
+//	public List<Tournament> getMostPopularUpcomingCallOfDutyTournaments(){
+//		
+//	}
+//	
+//	public List<Tournament> getMostPopulatUpcomingFifaTournaments(){
+//		
+//	}
+	
+	final long ONE_WEEK_IN_MILLISECONDS = 604800000;
+	
+	public List<Tournament> getAllTournamentsAfterOneWeek() throws InterruptedException, ExecutionException{
+		Date oneWeekFromNow = new Date(System.currentTimeMillis() + ONE_WEEK_IN_MILLISECONDS); 
+		Query query = getTournamentsCollection().whereGreaterThan("tournamentDate", oneWeekFromNow);
+		return query.get().get().getDocuments()
+				.stream()
+				.map(document -> document.toObject(Tournament.class))
+				.collect(Collectors.toList());
+	}
+	
+	public List<Tournament> getAllTournamentsBeforeOneWeek() throws InterruptedException, ExecutionException{
+		Date oneWeekFromNow = new Date(System.currentTimeMillis() + ONE_WEEK_IN_MILLISECONDS);
+		Date now = new Date(System.currentTimeMillis());
+		Query query = getTournamentsCollection().whereGreaterThan("tournamentDate", now).whereLessThanOrEqualTo("tournamentDate", oneWeekFromNow);
+		return query.get().get().getDocuments()
 				.stream()
 				.map(document -> document.toObject(Tournament.class))
 				.collect(Collectors.toList());
