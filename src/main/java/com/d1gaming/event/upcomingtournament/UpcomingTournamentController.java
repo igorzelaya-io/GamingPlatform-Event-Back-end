@@ -25,7 +25,7 @@ import com.d1gaming.library.tournament.TournamentCreationRequest;
 @RestController
 @CrossOrigin(origins="localhost:4200")
 @PreAuthorize("permitAll()")
-@RequestMapping("upcomingtournamentsapi")
+@RequestMapping("/upcomingtournamentsapi")
 public class UpcomingTournamentController {
 	
 	@Autowired

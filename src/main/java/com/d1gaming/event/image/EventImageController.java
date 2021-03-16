@@ -29,7 +29,6 @@ public class EventImageController {
 	private EventImageService eventImagesService;
 	
 	@PostMapping(value = "/images/save", params = "teamId")
-	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<?> saveTeamImage(@RequestParam(required = true)String teamId,
 										   @RequestBody(required = true)MultipartFile file) throws InterruptedException, ExecutionException, IOException{
 		ImageModel image = new ImageModel(file.getOriginalFilename(), file.getContentType(),

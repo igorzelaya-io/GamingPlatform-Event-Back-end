@@ -1,6 +1,5 @@
 package com.d1gaming.event.tournament;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
