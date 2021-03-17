@@ -103,12 +103,13 @@ public class EventSecurityConfiguration extends WebSecurityConfigurerAdapter {
 	
 	@Bean
 	public CorsFilter corsFilter() {
-		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		CorsConfiguration config = new CorsConfiguration();
-		config.setAllowCredentials(true);
-		config.setAllowedOrigins(Arrays.asList("http://localhost:4200"));
-		config.addAllowedHeader("*");
-		config.addAllowedMethod("*");
+		config.setAllowedOrigins(Arrays.asList("*"));
+		config.setAllowedMethods(Arrays.asList("*"));
+		config.setAllowedHeaders(Arrays.asList("*"));
+		config.setAllowedOriginPatterns(Arrays.asList("*"));
+		config.setMaxAge(1800L);
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", config);
 		return new CorsFilter(source);
 	}

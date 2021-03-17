@@ -26,24 +26,24 @@ public class ServiceController {
 	private ServiceService serviceService;
 	
 	@GetMapping(value = "/services/search", params = "serviceId")
-	public ResponseEntity<?> getServiceById(@RequestParam(required = true) String serviceId) throws InterruptedException, ExecutionException{
+	public ResponseEntity<D1Service> getServiceById(@RequestParam(required = true) String serviceId) throws InterruptedException, ExecutionException{
 		if(serviceId == null){
-			return new ResponseEntity<>("Bad Input", HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
 		}
 		Optional<D1Service> service = serviceService.getServiceById(serviceId);
 		if(service == null) {
-			return new ResponseEntity<>(service,HttpStatus.NOT_FOUND);
+			return new ResponseEntity<>(null,HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<>(service.get(), HttpStatus.OK);
+		return new ResponseEntity<D1Service>(service.get(), HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "/services")
-	public ResponseEntity<?> getAllServices() throws InterruptedException, ExecutionException{
+	public ResponseEntity<List<D1Service>> getAllServices() throws InterruptedException, ExecutionException{
 		List<D1Service> serviceLs = serviceService.getAllServices();
 		if(serviceLs.isEmpty()) {
-			return new ResponseEntity<>(serviceLs, HttpStatus.NO_CONTENT);
+			return new ResponseEntity<List<D1Service>>(serviceLs, HttpStatus.NO_CONTENT);
 		}
-		return new ResponseEntity<>(serviceLs, HttpStatus.OK);
+		return new ResponseEntity<List<D1Service>>(serviceLs, HttpStatus.OK);
 	
 	}
 	
