@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.d1gaming.library.request.TeamTournamentRequest;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -42,7 +43,7 @@ public class TeamTournamentController {
 	
 	@GetMapping(value = "/teamTournaments/search")
 	public ResponseEntity<Tournament> getTournamentFromTeamById(@RequestParam(required = true)String teamId, 
-													   @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+													            @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		Optional<Tournament> tournament = teamTournamentService.getTournamentFromTeamById(teamId, tournamentId);
 		if(tournament == null) {
 			return new ResponseEntity<>(null, HttpStatus.NOT_FOUND );
@@ -52,9 +53,8 @@ public class TeamTournamentController {
 	
 	@PostMapping(value = "/teamTournaments/add")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")
-	public ResponseEntity<MessageResponse> addTeamToTournament(@RequestBody(required = true)Team team,
-												 @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
-		String response = teamTournamentService.addTeamToTournament(team, tournament);
+	public ResponseEntity<MessageResponse> addTeamToTournament(@RequestBody(required = true)TeamTournamentRequest teamTournamentRequest) throws InterruptedException, ExecutionException{
+		String response = teamTournamentService.addTeamToTournament(teamTournamentRequest.getTeam(), teamTournamentRequest.getTournament());
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
@@ -63,9 +63,8 @@ public class TeamTournamentController {
 	
 	@DeleteMapping(value = "/teamTournaments/remove")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")
-	public ResponseEntity<MessageResponse> removeTeamFromTournament(@RequestBody(required = true)Team team,
-													  @RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
-		String response = teamTournamentService.removeTeamFromTournament(team, tournament);
+	public ResponseEntity<MessageResponse> removeTeamFromTournament(@RequestBody(required = true)TeamTournamentRequest teamTournamentRequest) throws InterruptedException, ExecutionException{
+		String response = teamTournamentService.removeTeamFromTournament(teamTournamentRequest.getTeam(), teamTournamentRequest.getTournament());
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
