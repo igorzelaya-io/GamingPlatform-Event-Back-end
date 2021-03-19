@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.request.TeamTournamentRequest;
 import com.d1gaming.library.response.MessageResponse;
-import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
 
 @RestController
