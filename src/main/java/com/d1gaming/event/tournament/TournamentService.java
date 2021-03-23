@@ -240,8 +240,11 @@ public class TournamentService {
 	
 	private void addModeratorRoleToUser(User user) throws InterruptedException, ExecutionException {
 		List<Role> userRoleLs = user.getUserRoles();
-		Role role = new Role(Role.TOURNEY_ADMIN);
-		if(!userRoleLs.contains(role)) {
+		boolean hasRole = userRoleLs
+				.stream()
+				.anyMatch(role -> role.getAuthority().equals("TOURNEY_ADMIN"));
+		if(!hasRole) {
+			Role role = new Role(Role.TOURNEY_ADMIN);
 			DocumentReference userReference = getUserReference(user.getUserId());
 			userRoleLs.add(role);
 			WriteBatch batch = firestore.batch();
@@ -255,12 +258,16 @@ public class TournamentService {
 	private void removeModeratorRoleFromUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getUserReference(user.getUserId());
 		List<Role> userRoleLs = user.getUserRoles();
-		Role role = new Role(Role.TOURNEY_ADMIN);
-		if(userRoleLs.contains(role)) {
-			int index = userRoleLs.indexOf(role);
-			userRoleLs.remove(index);
+		boolean hasRole = userRoleLs
+					.stream()
+					.anyMatch(role -> role.getAuthority().equals("TOURNEY_ADMIN"));
+		if(hasRole) {
+			List<Role> userRoleLsWithoutModeratorRole = userRoleLs
+					.stream()
+					.filter(role -> !role.getAuthority().equals("TOURNEY_ADMIN"))
+					.collect(Collectors.toList());
 			WriteBatch batch = firestore.batch();
-			batch.update(reference, "userRoles", userRoleLs);
+			batch.update(reference, "userRoles", userRoleLsWithoutModeratorRole);
 			List<WriteResult> results = batch.commit().get();
 			results.forEach(result -> 
 				System.out.println("Update Time: " + result.getUpdateTime()));
