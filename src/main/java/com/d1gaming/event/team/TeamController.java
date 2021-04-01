@@ -95,6 +95,19 @@ public class TeamController {
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
+	@PostMapping(value = "/teams/users/add")
+	@PreAuthorize("hasRole('TEAM_ADMIN') or hasRole('ADMIN')")
+	public ResponseEntity<MessageResponse> addUserToTeam(@RequestBody(required = true) TeamCreationRequest teamCreationRequest) throws InterruptedException, ExecutionException{
+		String response = teamService.addUserToTeam(teamCreationRequest.getTeamModerator(), teamCreationRequest.getTeamToRegister());
+		if(response.equals("Not found.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
+		}
+		else if(response.equals("Invalid")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.BAD_REQUEST);
+		}
+		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+	}
+	
 	@PostMapping(value = "/teams/invite")
 	@PreAuthorize("hasRole('TEAM_ADMIN') or hasRole('ADMIN')")
 	public ResponseEntity<MessageResponse> sendTeamInvite(@RequestBody TeamInviteRequest teamInvite) throws InterruptedException, ExecutionException{

@@ -155,6 +155,35 @@ public class TeamService {
 		return teamId;
 	}
 	
+	public String addUserToTeam(User user, Team team ) throws InterruptedException, ExecutionException {
+		if(isActiveUser(user.getUserId()) && isActive(team.getTeamId())) {
+			DocumentReference userReference = getUserReference(user.getUserId());
+			DocumentReference teamReference = getTeamReference(team.getTeamId());
+			List<User> currTeamUserList = team.getTeamUsers();
+			List<Team> currUserTeamList = user.getUserTeams();
+			boolean alreadyContainsTeam = currUserTeamList
+											.stream()
+											.anyMatch(teamInList -> teamInList.getTeamName().equals(team.getTeamName()));
+			
+			boolean alreadyContainsUser = currTeamUserList
+											.stream()
+											.anyMatch(userInList -> userInList.getUserName().equals(user.getUserName()));
+			if(!alreadyContainsTeam && !alreadyContainsUser) {
+				WriteBatch batch = firestore.batch();
+				currTeamUserList.add(user);
+				currUserTeamList.add(team);
+				batch.update(teamReference, "teamRequests", currTeamUserList);
+				batch.update(userReference, "userTeamRequests", currUserTeamList);
+				batch.commit().get()
+						.stream()
+						.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+				return "Added User to team.";
+			}
+			return "Invalid";	
+		}
+		return "Not found.";
+	}
+	
 	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
 		team.setTeamTournaments(new ArrayList<>());
