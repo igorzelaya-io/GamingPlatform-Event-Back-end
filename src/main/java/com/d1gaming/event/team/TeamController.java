@@ -102,9 +102,6 @@ public class TeamController {
 		if(response.equals("User not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
-		else if(response.equals("Invite could not be sent.")) {
-			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.EXPECTATION_FAILED);
-		}
 		else {			
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 		}

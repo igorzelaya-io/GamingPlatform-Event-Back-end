@@ -59,7 +59,7 @@ public class TeamService {
 	}
 	
 	public boolean isActiveUser(String userId) throws InterruptedException, ExecutionException {
-		DocumentReference userReference = firestore.collection("user").document(userId);
+		DocumentReference userReference = firestore.collection("users").document(userId);
 		DocumentSnapshot userSnapshot = userReference.get().get();
 		if(userSnapshot.exists() && userSnapshot.toObject(User.class).getUserStatusCode().equals(UserStatus.ACTIVE)) {
 			return true;
@@ -140,6 +140,7 @@ public class TeamService {
 	public String postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
 		team.setTeamTournaments(new ArrayList<>());
+		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamLeader(teamLeader);	
 		addTeamAdminRoleToUser(teamLeader);
@@ -151,13 +152,14 @@ public class TeamService {
 		results
 			.stream()
 			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-		return "Team created";
+		return teamId;
 	}
 	
 	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
 		team.setTeamTournaments(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
+		team.setTeamRequests(new ArrayList<>());
 		team.setTeamLeader(teamLeader);
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
@@ -289,53 +291,60 @@ public class TeamService {
 	
 	public String sendTeamInvite(TeamInviteRequest request) throws InterruptedException, ExecutionException{
 		if(isActiveUser(request.getRequestedUser().getUserId()) && isActive(request.getTeamRequest().getTeamId()))  {
-			List<TeamInviteRequest>  userRequests = request.getRequestedUser().getUserTeamRequests();
-			DocumentReference reference = firestore.collection("users").document(request.getRequestedUser().getUserId());
+			DocumentReference userReference = firestore.collection("users").document(request.getRequestedUser().getUserId());
+			DocumentReference teamReference = getTeamReference(request.getTeamRequest().getTeamId());
+			List<TeamInviteRequest> userRequests = userReference.get().get().toObject(User.class).getUserTeamRequests();
+			List<TeamInviteRequest> teamRequests = teamReference.get().get().toObject(Team.class).getTeamRequests();
+			teamRequests.add(request);
 			userRequests.add(request);
 			request.setRequestedTime(new Date(System.currentTimeMillis()));
 			WriteBatch batch = firestore.batch();
-			batch.update(reference, "userTeamRequests", userRequests);
-			List<WriteResult> results = batch.commit().get();
-			results.forEach(result -> 
-				System.out.println("Update Time: " + result.getUpdateTime())
-			);
-			User user = request.getRequestedUser();
-			if(user.getUserTeamRequests().contains(request)) {
-				return "Invite sent successfully.";
-			}
-			return "Invite could not be sent.";
+			batch.update(userReference, "userTeamRequests", userRequests);
+			batch.update(teamReference, "teamRequests", teamRequests);
+			batch.commit().get()
+					.stream()
+					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			return "Invite sent successfully.";
 		}
 		return "Not found.";
 	}
 	
 	private void addTeamAdminRoleToUser(User user) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId())) {
-			DocumentReference userReference = getUsersCollection().document(user.getUserId());
-			WriteBatch batch = firestore.batch();
 			List<Role> currentUserRolesList = user.getUserRoles();
-			currentUserRolesList.add(new Role(Role.TEAM_ADMIN));
-			batch.update(userReference, "userRoles", currentUserRolesList);
-			batch.commit().get()
-					.stream()
-					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));;
+			boolean hasRole = currentUserRolesList
+								.stream()
+								.anyMatch(role -> role.getAuthority().equals("TEAM_ADMIN"));
+			if(!hasRole) {				
+				DocumentReference userReference = getUsersCollection().document(user.getUserId());
+				WriteBatch batch = firestore.batch();
+				currentUserRolesList.add(new Role(Role.TEAM_ADMIN));
+				batch.update(userReference, "userRoles", currentUserRolesList);
+				batch.commit().get()
+				.stream()
+				.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));;
+			}
 		}
 	}
 	
 	private void removeTeamAdminRoleFromUser(User user) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId())) {
-			DocumentReference userReference = getUsersCollection().document(user.getUserId());
-			WriteBatch batch = firestore.batch();
 			List<Role> currentUserRoles = user.getUserRoles();
-			Role role = new Role( Role.TEAM_ADMIN);
-			if(currentUserRoles.contains(role)) {				
-				int index = currentUserRoles.indexOf(role);
-				currentUserRoles.remove(index);
+			boolean hasRole = currentUserRoles
+								.stream()
+								.anyMatch(role -> role.getAuthority().equals("TEAM_ADMIN"));
+			if(hasRole) {
+				DocumentReference userReference = getUsersCollection().document(user.getUserId());
+				WriteBatch batch = firestore.batch();
+				currentUserRoles = currentUserRoles
+									.stream()
+									.filter(role -> !role.getAuthority().equals("TEAM_ADMIN"))
+									.collect(Collectors.toList());
 				batch.update(userReference, "userRoles", currentUserRoles);
 				batch.commit().get()
-				.stream()
-				.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+					.stream()
+					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
 			}
-			return;
 		}
 	}
 }	
