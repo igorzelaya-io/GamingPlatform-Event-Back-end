@@ -145,18 +145,22 @@ public class TeamService {
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamLeader(teamLeader);
-		List<User> userTeamList = Arrays.asList(teamLeader);
-		team.setTeamUsers(userTeamList);
+		List<User> teamUsersList = Arrays.asList(teamLeader);
+		team.setTeamUsers(teamUsersList);
+		List<Team> userTeamList = teamLeader.getUserTeams();
+		userTeamList.add(team);
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
+		DocumentReference userReference = getUserReference(teamLeader.getUserId());
 		String teamId = reference.getId();
 		team.setTeamId(teamId);
 		WriteBatch batch = firestore.batch();
+		batch.update(userReference, "userTeams", userTeamList);
 		batch.update(reference, "teamId", teamId);
-		List<WriteResult> results = batch.commit().get();
-		results
-			.stream()
-			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		batch.commit().get()
+					.stream()
+					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		
 		return Optional.of(team);
 	}
 	
