@@ -1,6 +1,7 @@
 package com.d1gaming.event.team;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamInviteRequest;
+import com.d1gaming.library.team.TeamInviteRequestStatus;
 import com.d1gaming.library.team.TeamStatus;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserStatus;
@@ -137,22 +139,25 @@ public class TeamService {
 		return new ArrayList<>();
 	}
 	
-	public String postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
+	public Optional<Team> postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
 		team.setTeamTournaments(new ArrayList<>());
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
-		team.setTeamLeader(teamLeader);	
+		team.setTeamLeader(teamLeader);
+		List<User> userTeamList = Arrays.asList(teamLeader);
+		team.setTeamUsers(userTeamList);
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
+		team.setTeamId(teamId);
 		WriteBatch batch = firestore.batch();
 		batch.update(reference, "teamId", teamId);
 		List<WriteResult> results = batch.commit().get();
 		results
 			.stream()
 			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-		return teamId;
+		return Optional.of(team);
 	}
 	
 	public String addUserToTeam(User user, Team team ) throws InterruptedException, ExecutionException {
@@ -320,6 +325,7 @@ public class TeamService {
 	
 	public String sendTeamInvite(TeamInviteRequest request) throws InterruptedException, ExecutionException{
 		if(isActiveUser(request.getRequestedUser().getUserId()) && isActive(request.getTeamRequest().getTeamId()))  {
+			request.setRequestStatus(TeamInviteRequestStatus.PENDING);
 			DocumentReference userReference = firestore.collection("users").document(request.getRequestedUser().getUserId());
 			DocumentReference teamReference = getTeamReference(request.getTeamRequest().getTeamId());
 			List<TeamInviteRequest> userRequests = userReference.get().get().toObject(User.class).getUserTeamRequests();

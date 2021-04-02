@@ -75,24 +75,24 @@ public class TeamController {
 	
 	@PostMapping(value = "/teams/create")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<MessageResponse> createTeam(@RequestBody(required = true) TeamCreationRequest team) throws InterruptedException, ExecutionException, IOException{	
+	public ResponseEntity<Object> createTeam(@RequestBody(required = true) TeamCreationRequest team) throws InterruptedException, ExecutionException, IOException{	
 		if(team.getTeamImage() != null) {
 			ImageModel teamImage = new ImageModel(team.getTeamImage().getOriginalFilename(), team.getTeamImage().getContentType(),
 													team.getTeamImage().getBytes());
 			if(teamService.getTeamByName(team.getTeamToRegister().getTeamName()) != null) {
-				return new ResponseEntity<MessageResponse>(new MessageResponse("Team name is already in use."), HttpStatus.BAD_REQUEST);
+				return new ResponseEntity<Object>(new MessageResponse("Team name is already in use."), HttpStatus.BAD_REQUEST);
 			}
 			String response = teamService.postTeamWithImage(team.getTeamToRegister(), team.getTeamModerator() ,teamImage);
-			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+			return new ResponseEntity<Object>(new MessageResponse(response), HttpStatus.OK);
 		}
 		if(teamService.getTeamByName(team.getTeamToRegister().getTeamName()) != null){
-			return new ResponseEntity<MessageResponse>(new MessageResponse("Team name is already in use."), HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<Object>(new MessageResponse("Team name is already in use."), HttpStatus.BAD_REQUEST);
 		}
 		if(teamService.getTeamByEmail(team.getTeamToRegister().getTeamEmail()) != null) {
-			return new ResponseEntity<MessageResponse>(new MessageResponse("Team email is already in use."), HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<Object>(new MessageResponse("Team email is already in use."), HttpStatus.BAD_REQUEST);
 		}
-		String response = teamService.postTeam(team.getTeamToRegister(), team.getTeamModerator());			
-		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+		Optional<Team> response = teamService.postTeam(team.getTeamToRegister(), team.getTeamModerator());			
+		return new ResponseEntity<Object>(response.get(), HttpStatus.OK);
 	}
 	
 	@PostMapping(value = "/teams/users/add")
