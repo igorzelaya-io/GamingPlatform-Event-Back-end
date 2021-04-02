@@ -145,22 +145,21 @@ public class TeamService {
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamLeader(teamLeader);
-		List<User> teamUsersList = Arrays.asList(teamLeader);
-		team.setTeamUsers(teamUsersList);
-		List<Team> userTeamList = teamLeader.getUserTeams();
-		userTeamList.add(team);
+		team.setTeamUsers(new ArrayList<>());
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
-		DocumentReference userReference = getUserReference(teamLeader.getUserId());
+//		DocumentReference userReference = getUserReference(teamLeader.getUserId());
+//		List<Team> userTeamList = teamLeader.getUserTeams();
+//		userTeamList.add(team);
+//		userReference.update("userTeams", userTeamList);
 		String teamId = reference.getId();
 		team.setTeamId(teamId);
 		WriteBatch batch = firestore.batch();
-		batch.update(userReference, "userTeams", userTeamList);
 		batch.update(reference, "teamId", teamId);
 		batch.commit().get()
 					.stream()
 					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-		
+		addUserToTeam(teamLeader, team);
 		return Optional.of(team);
 	}
 	
@@ -179,10 +178,12 @@ public class TeamService {
 											.anyMatch(userInList -> userInList.getUserName().equals(user.getUserName()));
 			if(!alreadyContainsTeam && !alreadyContainsUser) {
 				WriteBatch batch = firestore.batch();
+				user.setUserTeams(null);
+				team.setTeamUsers(null);
 				currTeamUserList.add(user);
 				currUserTeamList.add(team);
-				batch.update(teamReference, "teamRequests", currTeamUserList);
-				batch.update(userReference, "userTeamRequests", currUserTeamList);
+				batch.update(teamReference, "teamUsers", currTeamUserList);
+				batch.update(userReference, "userTeams", currUserTeamList);
 				batch.commit().get()
 						.stream()
 						.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
