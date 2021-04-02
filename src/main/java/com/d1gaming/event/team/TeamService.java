@@ -1,7 +1,6 @@
 package com.d1gaming.event.team;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -144,7 +143,6 @@ public class TeamService {
 		team.setTeamTournaments(new ArrayList<>());
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
-		team.setTeamLeader(teamLeader);
 		team.setTeamUsers(new ArrayList<>());
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
@@ -199,7 +197,7 @@ public class TeamService {
 		team.setTeamTournaments(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamRequests(new ArrayList<>());
-		team.setTeamLeader(teamLeader);
+		team.setTeamModerator(teamLeader);
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
 		String teamId = reference.getId();
@@ -218,7 +216,7 @@ public class TeamService {
 		if(isActive(team.getTeamId())) {
 			DocumentReference reference = getTeamReference(team.getTeamId());
 			WriteBatch batch = firestore.batch();
-			User user = team.getTeamLeader();
+			User user = team.getTeamModerator();
 			removeTeamAdminRoleFromUser(user);
 			//Change teamStatus to Inactive.
 			batch.update(reference, "teamStatus", TeamStatus.INACTIVE);
@@ -234,7 +232,7 @@ public class TeamService {
 	public String banTeamById(Team team) throws InterruptedException, ExecutionException {
 		if(isActive(team.getTeamId())) {
 			DocumentReference teamReference = getTeamReference(team.getTeamId());
-			User currTeamLeader = team.getTeamLeader();
+			User currTeamLeader = team.getTeamModerator();
 			removeTeamAdminRoleFromUser(currTeamLeader);
 			WriteBatch batch = firestore.batch();
 			batch.update(teamReference, "teamStatus", TeamStatus.BANNED);
