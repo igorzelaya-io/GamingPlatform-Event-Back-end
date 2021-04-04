@@ -120,22 +120,6 @@ public class TournamentService {
 				.collect(Collectors.toList());
 	}
 	
-//	public List<Tournament> getMostPopularCallOfDutyTournaments(){
-//		
-//	}
-//	
-//	public List<Tournament> getMostPopularFifaTournaments(){
-//		
-//	}
-//	
-//	public List<Tournament> getMostPopularUpcomingCallOfDutyTournaments(){
-//		
-//	}
-//	
-//	public List<Tournament> getMostPopulatUpcomingFifaTournaments(){
-//		
-//	}
-	
 	final long ONE_WEEK_IN_MILLISECONDS = 604800000;
 	
 	public List<Tournament> getAllTournamentsAfterOneWeek() throws InterruptedException, ExecutionException{
@@ -182,17 +166,17 @@ public class TournamentService {
 	
 	public String postTournament(User user, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId())) {
+			tournament.setTournamentStatus(TournamentStatus.ACTIVE);
+			tournament.setTournamentTeams(new ArrayList<>());
+			tournament.setTournamentModerator(user);
+			addModeratorRoleToUser(user);
 			DocumentReference reference = getTournamentsCollection().add(tournament).get();
 			String documentId = reference.getId();
 			WriteBatch batch = firestore.batch();
-			batch.update(reference, "tournamentStatus", TournamentStatus.ACTIVE);
 			batch.update(reference, "tournamentId", documentId);
-			batch.update(reference, "tournamentModerator", user);
 			batch.commit().get()
 					.stream()
 					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-			
-			addModeratorRoleToUser(user);
 			return "Tournament with ID: '" + documentId + "' was created succesfully";
 		}
 		return "Not found.";

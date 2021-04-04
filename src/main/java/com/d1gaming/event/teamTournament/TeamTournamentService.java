@@ -109,14 +109,15 @@ public class TeamTournamentService {
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
 			ApiFuture<WriteResult> addedDocument = getTeamCollectionReference().document(team.getTeamId())
 															.collection(TEAM_TOURNAMENT_SUBCOLLECTION).document(tournament.getTournamentId()).set(tournament);
+			
 			System.out.println("Added Document: " + addedDocument.get().getUpdateTime());
 			List<Team> tournamentTeamList = tournament.getTournamentTeams();
 			WriteBatch batch = firestore.batch();
+			team.setTeamTournaments(null);
 			tournamentTeamList.add(team);
 			batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
 			batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
-			List<WriteResult> results = batch.commit().get();
-			results.forEach(result -> 
+			batch.commit().get().stream().forEach(result -> 
 								System.out.println("Update Time: " +result.getUpdateTime()));
 			return "Team added successfully to tournament.";
 		}
