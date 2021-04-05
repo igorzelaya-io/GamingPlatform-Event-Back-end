@@ -113,7 +113,6 @@ public class TeamTournamentService {
 			System.out.println("Added Document: " + addedDocument.get().getUpdateTime());
 			List<Team> tournamentTeamList = tournament.getTournamentTeams();
 			WriteBatch batch = firestore.batch();
-			team.setTeamTournaments(null);
 			tournamentTeamList.add(team);
 			batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
 			batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
