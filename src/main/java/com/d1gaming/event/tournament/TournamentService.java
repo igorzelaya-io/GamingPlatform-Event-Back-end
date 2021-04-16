@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.Stack;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -168,7 +169,11 @@ public class TournamentService {
 		if(isActiveUser(user.getUserId())) {
 			tournament.setTournamentStatus(TournamentStatus.ACTIVE);
 			tournament.setTournamentTeams(new ArrayList<>());
+			tournament.setTournamentMatches(new ArrayList<>());
 			tournament.setTournamentModerator(user);
+			tournament.setTournamentLeaderboardForLeague(new ArrayList<>());
+			tournament.setTournamentTeamBracketStack(new Stack<>());
+			tournament.setStartedTournamentStatus(false);
 			addModeratorRoleToUser(user);
 			DocumentReference reference = getTournamentsCollection().add(tournament).get();
 			String documentId = reference.getId();
@@ -181,6 +186,12 @@ public class TournamentService {
 		}
 		return "Not found.";
 	}
+	
+//	public String activateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
+//		if(isActiveTournament(tournament.getTournamentId())) {
+//			DocumentReference tournamentReference = tournament
+//		}
+//	}
 	
 	public String deleteTournament(Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId())) {

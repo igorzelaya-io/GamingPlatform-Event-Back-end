@@ -140,16 +140,13 @@ public class TeamService {
 	
 	public Optional<Team> postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
-		team.setTeamTournaments(new ArrayList<>());
+		team.setTeamFifaTournaments(new ArrayList<>());
+		team.setTeamCodTournaments(new ArrayList<>());
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamUsers(new ArrayList<>());
 		addTeamAdminRoleToUser(teamLeader);
 		DocumentReference reference = getTeamsCollection().add(team).get();
-//		DocumentReference userReference = getUserReference(teamLeader.getUserId());
-//		List<Team> userTeamList = teamLeader.getUserTeams();
-//		userTeamList.add(team);
-//		userReference.update("userTeams", userTeamList);
 		String teamId = reference.getId();
 		team.setTeamId(teamId);
 		WriteBatch batch = firestore.batch();
@@ -159,6 +156,26 @@ public class TeamService {
 					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
 		addUserToTeam(teamLeader, team);
 		return Optional.of(team);
+	}
+	
+	//REPLICATE TO 'POSTTEAM()' METHOD.
+	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
+		team.setTeamChallenges(new ArrayList<>());
+		team.setTeamFifaTournaments(new ArrayList<>());
+		team.setTeamCodTournaments(new ArrayList<>());
+		team.setTeamStatus(TeamStatus.ACTIVE);
+		team.setTeamRequests(new ArrayList<>());
+		team.setTeamModerator(teamLeader);
+		addTeamAdminRoleToUser(teamLeader);
+		DocumentReference reference = getTeamsCollection().add(team).get();
+		String teamId = reference.getId();
+		WriteBatch batch = firestore.batch();
+		batch.update(reference, "teamId", teamId);
+		batch.commit().get()
+			.stream()
+			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		eventImagesService.saveTeamImage(teamId, teamImage);
+		return "Team created.";
 	}
 	
 	public String addUserToTeam(User user, Team team ) throws InterruptedException, ExecutionException {
@@ -190,24 +207,6 @@ public class TeamService {
 			return "Invalid";	
 		}
 		return "Not found.";
-	}
-	
-	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
-		team.setTeamChallenges(new ArrayList<>());
-		team.setTeamTournaments(new ArrayList<>());
-		team.setTeamStatus(TeamStatus.ACTIVE);
-		team.setTeamRequests(new ArrayList<>());
-		team.setTeamModerator(teamLeader);
-		addTeamAdminRoleToUser(teamLeader);
-		DocumentReference reference = getTeamsCollection().add(team).get();
-		String teamId = reference.getId();
-		WriteBatch batch = firestore.batch();
-		batch.update(reference, "teamId", teamId);
-		batch.commit().get()
-			.stream()
-			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-		eventImagesService.saveTeamImage(teamId, teamImage);
-		return "Team created.";
 	}
 	
 	//Delete Team by its ID. In reality this method just changes a Team's Status to INACTIVE.
