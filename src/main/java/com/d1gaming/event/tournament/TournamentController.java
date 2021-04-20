@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.d1gaming.library.match.Match;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -58,6 +59,26 @@ public class TournamentController {
 		}
 		return new ResponseEntity<List<Tournament>>(tournamentsNow, HttpStatus.OK);
 	}
+	
+	@GetMapping(value = "tournaments/matches/active")
+	public ResponseEntity<List<Match>> getAllTournamentMatches(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> tournamentMatches = tournamentService.getAllTournamentMatches(tournamentId);
+		if(tournamentMatches.isEmpty()) {
+			return new ResponseEntity<List<Match>>(tournamentMatches ,HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(tournamentMatches, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "tournaments/matches/inactive")
+	public ResponseEntity<List<Match>> getAllTournamentInactiveMatches(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> tournamentMatches = tournamentService.getAllTournamentInactiveMatches(tournamentId);
+		if(tournamentMatches.isEmpty()) {
+			return new ResponseEntity<List<Match>>(tournamentMatches ,HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(tournamentMatches, HttpStatus.OK);
+	}
+	
+	
 	
 	@GetMapping(value = "/tournaments/search", params="tournamentId")
 	public ResponseEntity<Tournament> getTournamentById(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{

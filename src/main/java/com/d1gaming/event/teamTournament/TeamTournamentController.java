@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.d1gaming.library.match.Match;
 import com.d1gaming.library.request.TeamTournamentRequest;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
@@ -30,8 +31,53 @@ public class TeamTournamentController {
 
 	@Autowired
 	private TeamTournamentService teamTournamentService;
+	
+	@GetMapping(value = "/teamTournaments/matches/search")
+	public ResponseEntity<Object> getTeamMatchFromTournament(@RequestParam(required = true)String matchId,
+															 @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		Optional<Match> tournamentMatch = teamTournamentService.getTeamMatchFromTournament(matchId, tournamentId);
+		if(tournamentMatch == null) {
+			return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+		}
+		return new ResponseEntity<Object>(tournamentMatch.get(), HttpStatus.OK);
+	}
 
-	//TODO
+	@GetMapping(value = "/teamTournaments/fifa/matches/active/all")
+	public ResponseEntity<List<Match>> getAllActiveFifaTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> teamTournamentMatchesList = teamTournamentService.getAllActiveFifaMatchesFromTournament(teamId, tournamentId);
+		if(teamTournamentMatchesList.isEmpty()) {
+			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/teamTournaments/cod/matches/active/all")
+	public ResponseEntity<List<Match>> getAllActiveCodTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> teamTournamentMatchesList = teamTournamentService.getAllActiveCodMatchesFromTournament(teamId, tournamentId);
+		if(teamTournamentMatchesList.isEmpty()) {
+			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/teamTournaments/fifa/matches/inactive/all")
+	public ResponseEntity<List<Match>> getAllInactiveFifaTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> teamTournamentMatchesList = teamTournamentService.getAllInactiveFifaMatchesFromTournament(teamId, tournamentId);
+		if(teamTournamentMatchesList.isEmpty()) {
+			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/teamTournaments/cod/matches/inactive/all")
+	public ResponseEntity<List<Match>> getAllInactiveCodTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> teamTournamentMatchesList = teamTournamentService.getAllInactiveCodMatchesFromTournament(teamId, tournamentId);
+		if(teamTournamentMatchesList.isEmpty()) {
+			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
+	}
+	
 	@GetMapping(value = "/teamTournaments/fifa/all")
 	public ResponseEntity<List<Tournament>> getAllFifaTournamentsFromTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
 		List<Tournament> teamTournaments = teamTournamentService.getAllFifaTournamentsFromTeam(teamId);
@@ -95,8 +141,8 @@ public class TeamTournamentController {
 	
 	@PostMapping(value = "/teamTournaments/cod/add")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")
-	public ResponseEntity<MessageResponse> addTeamToCodTournament(@RequestBody(required = true)TeamTournamentRequest teamTournamentRequest) throws InterruptedException, ExecutionException{
-		String response = teamTournamentService.addTeamToFifaTournament(teamTournamentRequest.getTeam(), teamTournamentRequest.getTournament());
+	public ResponseEntity<MessageResponse> addTeamToCodTournament(@RequestBody(required = true)TeamTournamentRequest teamTournamentRequest) throws InterruptedException, ExecutionException {
+		String response = teamTournamentService.addTeamToCodTournament(teamTournamentRequest.getTeam(), teamTournamentRequest.getTournament());
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}

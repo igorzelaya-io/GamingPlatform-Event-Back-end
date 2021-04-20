@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.d1gaming.library.match.Match;
+import com.d1gaming.library.match.MatchStatus;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -120,6 +122,32 @@ public class TournamentService {
 				.map(document -> document.toObject(Tournament.class))
 				.collect(Collectors.toList());
 	}
+
+	public List<Match> getAllTournamentMatches(String tournamentId) throws InterruptedException, ExecutionException{
+		if(isActiveTournament(tournamentId)) {
+			return getTournamentReference(tournamentId).collection("tournamentMatches").get().get()
+																.getDocuments()
+																.stream()
+																.map(document -> document.toObject(Match.class))
+																.filter(match -> match.getMatchStatus().equals(MatchStatus.ACTIVE))
+																.collect(Collectors.toList());
+		}
+		return new ArrayList<>();
+	
+	}
+	
+
+	public List<Match> getAllTournamentInactiveMatches(String tournamentId) throws InterruptedException, ExecutionException{
+		if(isActiveTournament(tournamentId)) {
+			return getTournamentReference(tournamentId).collection("tournamentMatches").get().get()
+																.getDocuments()
+																.stream()
+																.map(document -> document.toObject(Match.class))
+																.filter(match -> match.getMatchStatus().equals(MatchStatus.INACTIVE))
+																.collect(Collectors.toList());
+		}
+		return new ArrayList<>();
+	}
 	
 	final long ONE_WEEK_IN_MILLISECONDS = 604800000;
 	
@@ -129,16 +157,31 @@ public class TournamentService {
 		return query.get().get().getDocuments()
 				.stream()
 				.map(document -> document.toObject(Tournament.class))
+				.filter(tournament -> {
+					try {
+						return isActiveTournament(tournament.getTournamentId());
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+					return false;
+				})
 				.collect(Collectors.toList());
 	}
 	
 	public List<Tournament> getAllTournamentsBeforeOneWeek() throws InterruptedException, ExecutionException{
 		Date oneWeekFromNow = new Date(System.currentTimeMillis() + ONE_WEEK_IN_MILLISECONDS);
-		Date now = new Date(System.currentTimeMillis());
-		Query query = getTournamentsCollection().whereGreaterThan("tournamentDate", now).whereLessThanOrEqualTo("tournamentDate", oneWeekFromNow);
+		Query query = getTournamentsCollection().whereLessThanOrEqualTo("tournamentDate", oneWeekFromNow);
 		return query.get().get().getDocuments()
 				.stream()
 				.map(document -> document.toObject(Tournament.class))
+				.filter(tournament -> {
+					try {
+						return isActiveTournament(tournament.getTournamentId());
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+					return false;
+				})
 				.collect(Collectors.toList());
 	}
 	
