@@ -41,23 +41,23 @@ public class TeamTournamentController {
 		}
 		return new ResponseEntity<Object>(tournamentMatch.get(), HttpStatus.OK);
 	}
-
-	@GetMapping(value = "/teamTournaments/fifa/matches/active/all")
-	public ResponseEntity<List<Match>> getAllActiveFifaTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
-		List<Match> teamTournamentMatchesList = teamTournamentService.getAllActiveFifaMatchesFromTournament(teamId, tournamentId);
-		if(teamTournamentMatchesList.isEmpty()) {
-			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
+	
+	@GetMapping(value = "/teamTournaments/cod/all")
+	public ResponseEntity<List<Tournament>> getAllCodTournamentsFromTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
+		List<Tournament> teamTournaments = teamTournamentService.getAllCodTournamentsFromTeam(teamId);
+		if(teamTournaments.isEmpty()) {
+			return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.NO_CONTENT);
 		}
-		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
+		return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.OK);
 	}
 	
-	@GetMapping(value = "/teamTournaments/cod/matches/active/all")
-	public ResponseEntity<List<Match>> getAllActiveCodTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
-		List<Match> teamTournamentMatchesList = teamTournamentService.getAllActiveCodMatchesFromTournament(teamId, tournamentId);
-		if(teamTournamentMatchesList.isEmpty()) {
-			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
+	@GetMapping(value = "/teamTournaments/fifa/all")
+	public ResponseEntity<List<Tournament>> getAllFifaTournamentsFromTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
+		List<Tournament> teamTournaments = teamTournamentService.getAllFifaTournamentsFromTeam(teamId);
+		if(teamTournaments.isEmpty()) {
+			return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.NO_CONTENT);
 		}
-		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
+		return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "/teamTournaments/fifa/matches/inactive/all")
@@ -78,27 +78,27 @@ public class TeamTournamentController {
 		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
 	}
 	
-	@GetMapping(value = "/teamTournaments/fifa/all")
-	public ResponseEntity<List<Tournament>> getAllFifaTournamentsFromTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
-		List<Tournament> teamTournaments = teamTournamentService.getAllFifaTournamentsFromTeam(teamId);
-		if(teamTournaments.isEmpty()) {
-			return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.NO_CONTENT);
+	@GetMapping(value = "/teamTournaments/fifa/matches/active/all")
+	public ResponseEntity<List<Match>> getAllActiveFifaTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> teamTournamentMatchesList = teamTournamentService.getAllActiveFifaMatchesFromTournament(teamId, tournamentId);
+		if(teamTournamentMatchesList.isEmpty()) {
+			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
 		}
-		return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.OK);
+		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
 	}
 	
-	@GetMapping(value = "/teamTournaments/cod/all")
-	public ResponseEntity<List<Tournament>> getAllCodTournamentsFromTeam(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
-		List<Tournament> teamTournaments = teamTournamentService.getAllCodTournamentsFromTeam(teamId);
-		if(teamTournaments.isEmpty()) {
-			return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.NO_CONTENT);
+	@GetMapping(value = "/teamTournaments/cod/matches/active/all")
+	public ResponseEntity<List<Match>> getAllActiveCodTournamentsFromTeam(@RequestParam(required = true)String teamId, @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+		List<Match> teamTournamentMatchesList = teamTournamentService.getAllActiveCodMatchesFromTournament(teamId, tournamentId);
+		if(teamTournamentMatchesList.isEmpty()) {
+			return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.NO_CONTENT);
 		}
-		return new ResponseEntity<List<Tournament>>(teamTournaments, HttpStatus.OK);
+		return new ResponseEntity<List<Match>>(teamTournamentMatchesList, HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "/teamTournaments/fifa/search")
 	public ResponseEntity<Tournament> getFifaTournamentFromTeamById(@RequestParam(required = true)String teamId, 
-													            @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+													                @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		Optional<Tournament> tournament = teamTournamentService.getFifaTournamentFromTeamById(teamId, tournamentId);
 		if(tournament == null) {
 			return new ResponseEntity<>(null, HttpStatus.NOT_FOUND );
@@ -108,7 +108,7 @@ public class TeamTournamentController {
 	
 	@GetMapping(value = "/teamTournaments/cod/search")
 	public ResponseEntity<Tournament> getCodTournamentFromTeamById(@RequestParam(required = true)String teamId, 
-													            @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+													               @RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		Optional<Tournament> tournament = teamTournamentService.getCodTournamentFromTeamById(teamId, tournamentId);
 		if(tournament == null) {
 			return new ResponseEntity<>(null, HttpStatus.NOT_FOUND );

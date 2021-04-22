@@ -140,8 +140,6 @@ public class TeamService {
 	
 	public Optional<Team> postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
-		team.setTeamFifaTournaments(new ArrayList<>());
-		team.setTeamCodTournaments(new ArrayList<>());
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamUsers(new ArrayList<>());
@@ -161,8 +159,6 @@ public class TeamService {
 	//REPLICATE TO 'POSTTEAM()' METHOD.
 	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
 		team.setTeamChallenges(new ArrayList<>());
-		team.setTeamFifaTournaments(new ArrayList<>());
-		team.setTeamCodTournaments(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamModerator(teamLeader);

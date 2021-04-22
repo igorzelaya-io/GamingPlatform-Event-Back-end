@@ -60,17 +60,14 @@ public class TournamentController {
 		return new ResponseEntity<List<Tournament>>(tournamentsNow, HttpStatus.OK);
 	}
 	
-	@GetMapping(value = "tournaments/matches/active")
-	public ResponseEntity<List<Match>> getAllTournamentMatches(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+	@GetMapping(value = "tournaments/matches/all")
+	public ResponseEntity<List<Match>> getAllActiveTournamentMatches(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		List<Match> tournamentMatches = tournamentService.getAllTournamentMatches(tournamentId);
-		if(tournamentMatches.isEmpty()) {
-			return new ResponseEntity<List<Match>>(tournamentMatches ,HttpStatus.NO_CONTENT);
-		}
 		return new ResponseEntity<List<Match>>(tournamentMatches, HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "tournaments/matches/inactive")
-	public ResponseEntity<List<Match>> getAllTournamentInactiveMatches(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+	public ResponseEntity<List<Match>> getAllInactiveTournamentMatches(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		List<Match> tournamentMatches = tournamentService.getAllTournamentInactiveMatches(tournamentId);
 		if(tournamentMatches.isEmpty()) {
 			return new ResponseEntity<List<Match>>(tournamentMatches ,HttpStatus.NO_CONTENT);

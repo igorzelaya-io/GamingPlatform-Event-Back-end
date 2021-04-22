@@ -129,7 +129,6 @@ public class TournamentService {
 																.getDocuments()
 																.stream()
 																.map(document -> document.toObject(Match.class))
-																.filter(match -> match.getMatchStatus().equals(MatchStatus.ACTIVE))
 																.collect(Collectors.toList());
 		}
 		return new ArrayList<>();
@@ -212,7 +211,6 @@ public class TournamentService {
 		if(isActiveUser(user.getUserId())) {
 			tournament.setTournamentStatus(TournamentStatus.ACTIVE);
 			tournament.setTournamentTeams(new ArrayList<>());
-			tournament.setTournamentMatches(new ArrayList<>());
 			tournament.setTournamentModerator(user);
 			tournament.setTournamentLeaderboardForLeague(new ArrayList<>());
 			tournament.setTournamentTeamBracketStack(new Stack<>());
