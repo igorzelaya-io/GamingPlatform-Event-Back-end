@@ -22,6 +22,7 @@ import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserStatus;
 import com.d1gaming.library.user.UserTournament;
+import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -241,6 +242,7 @@ public class TeamTournamentService {
 	public String addTeamToFifaTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId())) {
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
+			DocumentReference teamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
 			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);			
 			List<Match> teamMatches = new ArrayList<>();
 			TeamFifaTournament teamTournamentSubDocument = new TeamFifaTournament(tournamentOnDB, teamMatches, 0, 0, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
@@ -251,47 +253,66 @@ public class TeamTournamentService {
 																	.map(document -> document.toObject(TeamFifaTournament.class))
 																	.anyMatch(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournament.getTournamentId()));
 			if(!isAlreadyPartOfTournament) {				
-				DocumentReference addedDocumentToFifaTournamentsSubcollection = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamTournamentSubDocument).get();
-				String documentId = addedDocumentToFifaTournamentsSubcollection.getId();
-				List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
-				tournamentTeamList.add(team);	
-				Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-				WriteBatch batch = firestore.batch();
-				List<User> teamUsers = team.getTeamUsers();
-				teamUsers
-					.stream()
-					.forEach(user -> {
-						try {
-							addTournamentToUser(user, team, tournament);
-						} catch (InterruptedException | ExecutionException e) {
-							e.printStackTrace();
-						}
-					});
-				boolean isWrittenBatch = false;
-				if(tournamentTeamStack.isEmpty()) {
-					tournamentTeamStack.add(team);
-				}
-				else {
-					Team localTeam = tournamentTeamStack.pop();
-					addMatchToFifaTeams(localTeam, team, tournamentOnDB);
-					batch.update(addedDocumentToFifaTournamentsSubcollection, "teamTournamentId", documentId);
-					batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-					batch.commit().get()
+				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
+					DocumentSnapshot teamModeratorSnapshot = transaction.get(teamModeratorReference).get();
+					DocumentSnapshot tourneySnapshot = transaction.get(tourneyReference).get();
+					double teamModeratorTokens = teamModeratorSnapshot.getDouble("userTokens");
+					double tourneyNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
+					if(tournament.getTournamentLimitNumberOfTeams()  > tourneyNumberOfTeams && teamModeratorTokens > tournament.getTournamentEntryFee()) {
+						DocumentReference addedDocumentToTeamFifaTournamentsSubcollection = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamTournamentSubDocument).get();						
+						String documentId = addedDocumentToTeamFifaTournamentsSubcollection.getId();
+						List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
+						tournamentTeamList.add(team);
+						transaction.update(teamModeratorReference, "userTokens", teamModeratorTokens - tournament.getTournamentEntryFee());
+						transaction.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
+						transaction.update(tourneyReference, "tournamentTeams", tournamentTeamList);
+						transaction.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
+						return documentId;
+					}
+					else if(teamModeratorTokens < tournament.getTournamentEntryFee()){
+						return "Not enough tokens to join tournament";
+					}
+					return "Tournament is already full.";
+				});
+				String transactionResult = futureTransaction.get();
+				if(!transactionResult.equals("Tournament is already full.") || !transactionResult.equals("Not enough tokens to join tournament")) {
+					DocumentReference teamFifaTournamentDocumentReference = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(transactionResult);
+					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
+					WriteBatch batch = firestore.batch();
+					List<User> teamUsers = team.getTeamUsers();
+					teamUsers
+						.stream()
+						.forEach(user -> {
+							try {
+								addTournamentToUser(user, team, tournament);
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+					boolean isWrittenBatch = false;
+					if(tournamentTeamStack.isEmpty()) {
+						tournamentTeamStack.add(team);
+					}
+					else {
+						Team localTeam = tournamentTeamStack.pop();
+						batch.update(teamFifaTournamentDocumentReference, "teamTournamentId", transactionResult);
+						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
+						batch.commit().get()
+							.stream()
+							.forEach(result -> System.out.println("Update Time: " +result.getUpdateTime()));
+						addMatchToFifaTeams(localTeam, team, tournamentOnDB);
+						isWrittenBatch = true;
+					}
+					if(!isWrittenBatch) {
+						batch.update(teamFifaTournamentDocumentReference, "teamTournamentId", transactionResult);
+						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
+						batch.commit().get()
 						.stream()
 						.forEach(result -> System.out.println("Update Time: " +result.getUpdateTime()));
-					isWrittenBatch = true;
+					}
+					return "Team added successfully to tournament.";
 				}
-				if(!isWrittenBatch) {
-					batch.update(addedDocumentToFifaTournamentsSubcollection, "teamTournamentId", documentId);
-					batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-				}
-				batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
-				batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1)); 
-				batch.commit().get()
-					.stream()
-					.forEach(result -> 
-						System.out.println("Update Time: " +result.getUpdateTime()));
-				return "Team added successfully to tournament.";
+				return transactionResult;
 			}
 			return "Team is already part of tournament.";
 		}
@@ -301,6 +322,7 @@ public class TeamTournamentService {
 	public String addTeamToCodTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId())) {
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
+			DocumentReference userTeamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId()); 
 			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
 			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
 			List<Match> teamMatches = new ArrayList<>();
@@ -311,15 +333,35 @@ public class TeamTournamentService {
 																	.stream()
 																	.map(document -> document.toObject(TeamCodTournament.class))
 																	.anyMatch(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentName().equals(tournament.getTournamentName())); 
-			if(!isAlreadyPartOfTournament) {				
-				DocumentReference addedDocumentToTeamCodTournaments = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamCodTournamentSubdocument).get();
-				String documentId = addedDocumentToTeamCodTournaments.getId();
-				List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();			
-				tournamentTeamList.add(teamOnDB);
-				Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-				WriteBatch batch = firestore.batch();
-				List<User> teamUsers = teamOnDB.getTeamUsers();
-				teamUsers
+			if(!isAlreadyPartOfTournament) {
+				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
+					DocumentSnapshot teamModeratorSnapshot = transaction.get(userTeamModeratorReference).get();
+					DocumentSnapshot tourneySnapshot = transaction.get(tourneyReference).get();
+					double teamModeratorTokens = teamModeratorSnapshot.getDouble("userTokens");
+					double tourneyNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
+					if(tournament.getTournamentLimitNumberOfTeams()  > tourneyNumberOfTeams && teamModeratorTokens > tournament.getTournamentEntryFee()) {
+						DocumentReference addedDocumentToTeamCodTournaments = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamCodTournamentSubdocument).get();
+						String documentId = addedDocumentToTeamCodTournaments.getId();
+						List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();			
+						tournamentTeamList.add(teamOnDB);
+						transaction.update(userTeamModeratorReference, "userTokens", teamModeratorTokens - tournament.getTournamentEntryFee());
+						transaction.update(tourneyReference, "tournamentTeams", tournamentTeamList);
+						transaction.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
+						transaction.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
+						return documentId;
+					}
+					else if(teamModeratorTokens < tournament.getTournamentEntryFee()){
+						return "Not enough tokens to join tournament";
+					}
+					return "Tournament is already full.";
+				});
+				String transactionResult = futureTransaction.get();
+				if(!transactionResult.equals("Not enough tokens to join tournament") || !transactionResult.equals("Tournament is already full.")) {					
+					DocumentReference teamCodTournamentDocumentReference = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(transactionResult);
+					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
+					WriteBatch batch = firestore.batch();
+					List<User> teamUsers = teamOnDB.getTeamUsers();
+					teamUsers
 					.stream()
 					.forEach(user -> {
 						try {
@@ -328,31 +370,30 @@ public class TeamTournamentService {
 							e.printStackTrace();
 						}
 					});
-				boolean isWrittenBatch = false;
-				if(tournamentTeamStack.isEmpty()) {
-					tournamentTeamStack.add(team);
+					boolean isWrittenBatch = false;
+					if(tournamentTeamStack.isEmpty()) {
+						tournamentTeamStack.add(team);
+					}
+					else {
+						Team localTeam = tournamentTeamStack.pop();
+						batch.update(teamCodTournamentDocumentReference, "teamCodTournamentId", transactionResult);
+						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
+						batch.commit().get()
+							.stream()
+							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	
+						addMatchToCodTeams(localTeam, teamOnDB, tournamentOnDB);					
+						isWrittenBatch = true;
+					}
+					if(!isWrittenBatch) {
+						batch.update(teamCodTournamentDocumentReference, "teamCodTournamentId", transactionResult);
+						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
+						batch.commit().get()
+							.stream()
+							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+					}				
+					return "Team added successfully to tournament.";
 				}
-				else {
-					Team localTeam = tournamentTeamStack.pop();
-					batch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
-					batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-					batch.commit().get()
-						.stream()
-						.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	
-					addMatchToCodTeams(localTeam, teamOnDB, tournamentOnDB);					
-					isWrittenBatch = true;
-				}
-				if(!isWrittenBatch) {
-					batch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
-					batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-				}
-				batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
-				batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
-				batch.commit().get()
-						.stream()
-						.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-				
-				return "Team added successfully to tournament.";
+				return transactionResult;
 			}
 			return "Team is already part of tournament.";
 		}
@@ -380,6 +421,7 @@ public class TeamTournamentService {
 	
 	public String removeTeamFromCodTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId()) && !tournament.getStartedTournamentStatus()) {
+			DocumentReference userTeamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
 			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
 			Tournament tournamentOnDB = tournamentReference.get().get().toObject(Tournament.class);
 			List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
@@ -387,10 +429,21 @@ public class TeamTournamentService {
 										.stream()
 										.anyMatch(tournamentTeam -> tournamentTeam.getTeamName().equals(team.getTeamName()));
 			if(isPartOfTournament) {
-				List<Team> newTournamentTeamList = tournamentTeamList
-														.stream()
-														.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
-														.collect(Collectors.toList());
+				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
+					DocumentSnapshot teamModeratorSnapshot = transaction.get(userTeamModeratorReference).get();
+					DocumentSnapshot tourneySnapshot = transaction.get(tournamentReference).get();
+					double userTokens = teamModeratorSnapshot.getDouble("userTokens");
+					double tournamentNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
+					List<Team> newTournamentTeamList = tournamentTeamList
+							.stream()
+							.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
+							.collect(Collectors.toList());
+					
+					transaction.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
+					transaction.update(userTeamModeratorReference, "userTokens", userTokens + tournament.getTournamentEntryFee());
+					transaction.update(tournamentReference, "tournamentNumberOfTeams", tournamentNumberOfTeams - 1 );
+					return "Team removed from Tournament";
+				});
 				
 				List<TeamCodTournament> teamCodTournamentList = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 														.getDocuments()
@@ -431,8 +484,6 @@ public class TeamTournamentService {
 					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
 				}
 				batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
-				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
-				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
 				batch.commit().get()
 							.stream()
 							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	
@@ -444,6 +495,7 @@ public class TeamTournamentService {
 	
 	public String removeTeamFromFifaTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId()) && !tournament.getStartedTournamentStatus()) {
+			DocumentReference userTeamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
 			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
 			Tournament tournamentOnDB = tournamentReference.get().get().toObject(Tournament.class);
 			List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
@@ -451,11 +503,21 @@ public class TeamTournamentService {
 										.stream()
 										.anyMatch(tournamentTeam -> tournamentTeam.getTeamName().equals(team.getTeamName()));
 			if(isPartOfTournament) {
-				List<Team> newTournamentTeamList = tournamentTeamList
-														.stream()
-														.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
-														.collect(Collectors.toList());
-				
+				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
+					DocumentSnapshot teamModeratorSnapshot = transaction.get(userTeamModeratorReference).get();
+					DocumentSnapshot tourneySnapshot = transaction.get(tournamentReference).get();
+					double userTokens = teamModeratorSnapshot.getDouble("userTokens");
+					double tournamentNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
+					List<Team> newTournamentTeamList = tournamentTeamList
+							.stream()
+							.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
+							.collect(Collectors.toList());
+					
+					transaction.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
+					transaction.update(userTeamModeratorReference, "userTokens", userTokens + tournament.getTournamentEntryFee());
+					transaction.update(tournamentReference, "tournamentNumberOfTeams", tournamentNumberOfTeams - 1 );
+					return "Team removed from Tournament";
+				});
 				List<TeamFifaTournament> teamFifaTournamentsList = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 														.getDocuments()
 														.stream()
@@ -494,8 +556,6 @@ public class TeamTournamentService {
 					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
 				}
 				batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
-				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
-				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
 				batch.commit().get()
 							.stream()
 							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	

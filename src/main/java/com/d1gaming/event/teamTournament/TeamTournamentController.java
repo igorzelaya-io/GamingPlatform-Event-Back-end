@@ -146,6 +146,12 @@ public class TeamTournamentController {
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
+		else if(response.equals("Not enough tokens to join tournament.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.BAD_REQUEST);
+		}
+		else if(response.equals("Tournament is already full.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.BAD_REQUEST);
+		}		
 		else if(response.equals("Team is already part of tournament.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.BAD_REQUEST);
 		}

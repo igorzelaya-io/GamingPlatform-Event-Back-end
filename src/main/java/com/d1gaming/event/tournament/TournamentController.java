@@ -75,8 +75,6 @@ public class TournamentController {
 		return new ResponseEntity<List<Match>>(tournamentMatches, HttpStatus.OK);
 	}
 	
-	
-	
 	@GetMapping(value = "/tournaments/search", params="tournamentId")
 	public ResponseEntity<Tournament> getTournamentById(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
 		Optional<Tournament> tournament = tournamentService.getTournamentById(tournamentId);
