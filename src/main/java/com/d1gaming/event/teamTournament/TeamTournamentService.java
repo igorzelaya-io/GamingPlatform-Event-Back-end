@@ -22,7 +22,6 @@ import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserStatus;
 import com.d1gaming.library.user.UserTournament;
-import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -388,10 +387,12 @@ public class TeamTournamentService {
 	}
 	
 	public String removeTeamFromCodTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId()) && !tournament.getStartedTournamentStatus()) {
+		//&& !tournament.getStartedTournamentStatus()
+		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId()) ) {
 			DocumentReference userTeamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
 			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
 			Tournament tournamentOnDB = tournamentReference.get().get().toObject(Tournament.class);
+			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
 			List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
 			boolean isPartOfTournament = tournamentTeamList
 										.stream()
@@ -410,12 +411,12 @@ public class TeamTournamentService {
 						.collect(Collectors.toList());				
 				
 				WriteBatch batch = firestore.batch();
-				List<User> teamUsers = team.getTeamUsers();
+				List<User> teamUsers = teamOnDB.getTeamUsers();
 				teamUsers
 					.stream()
 					.forEach(user -> {
 						try {
-							removeTournamentFromUser(user, team, tournament);
+							removeTournamentFromUser(user, teamOnDB, tournament);
 						} catch (InterruptedException | ExecutionException e) {
 							e.printStackTrace();
 						}
@@ -435,9 +436,11 @@ public class TeamTournamentService {
 						addMatchToCodTeams(poppedTeam, teamToAssignMatchTo, tournamentOnDB);
 					}
 				}
-				tournamentTeamStack.pop();
+				else {					
+					tournamentTeamStack.pop();
+				}
 				if(!teamCodTournamentList.isEmpty()) {
-					DocumentReference invalidDocument = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamCodTournamentList.get(0).getTeamCodTournamentId());
+					DocumentReference invalidDocument = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamCodTournament.getTeamCodTournamentId());
 					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
 				}
 				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
@@ -452,10 +455,11 @@ public class TeamTournamentService {
 	}
 	
 	public String removeTeamFromFifaTournament(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId()) && !tournament.getStartedTournamentStatus()) {
+		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId()) && !tournament.isStartedTournament()) {
 			DocumentReference userTeamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
 			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
 			Tournament tournamentOnDB = tournamentReference.get().get().toObject(Tournament.class);
+			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
 			List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
 			boolean isPartOfTournament = tournamentTeamList
 										.stream()
@@ -476,12 +480,12 @@ public class TeamTournamentService {
 														.filter(teamTournament -> teamTournament.getTeamTournament().getTournamentName().equals(tournament.getTournamentName()))
 														.collect(Collectors.toList());
 				WriteBatch batch = firestore.batch();
-				List<User> teamUsers = team.getTeamUsers();
+				List<User> teamUsers = teamOnDB.getTeamUsers();
 				teamUsers
 					.stream()
 					.forEach(user -> {
 						try {
-							removeTournamentFromUser(user, team, tournament);
+							removeTournamentFromUser(user, teamOnDB, tournament);
 						} catch (InterruptedException | ExecutionException e) {
 							e.printStackTrace();
 						}
@@ -501,7 +505,9 @@ public class TeamTournamentService {
 						
 					}
 				}
-				tournamentTeamStack.pop();
+				else {					
+					tournamentTeamStack.pop();
+				}
 				if(!teamFifaTournamentsList.isEmpty()) {
 					DocumentReference invalidDocument = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId());
 					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
@@ -529,6 +535,8 @@ public class TeamTournamentService {
 																		.collect(Collectors.toList());
 			if(!userTournamentsListWithTournament.isEmpty()) {				
 				UserTournament userTournament = userTournamentsListWithTournament.get(0);
+				int indexOfUserTournament = userTournaments.indexOf(userTournament);
+				userTournaments.remove(indexOfUserTournament);
 				userTournament.setUserTournamentStatus(TeamTournamentStatus.INACTIVE);
 				userTournaments.add(userTournament);
 				WriteBatch batch = firestore.batch();

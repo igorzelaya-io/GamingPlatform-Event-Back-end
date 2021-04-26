@@ -15,11 +15,13 @@ import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
+import com.d1gaming.library.team.TeamTournamentStatus;
 import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserDetailsImpl;
 import com.d1gaming.library.user.UserStatus;
+import com.d1gaming.library.user.UserTournament;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
@@ -148,6 +150,23 @@ public class TournamentService {
 		return new ArrayList<>();
 	}
 	
+	public List<Match> getAllUserActiveMatches(String userId, String tournamentId) throws InterruptedException, ExecutionException{
+		if(isActiveUser(userId) && isActiveTournament(tournamentId)) {
+			User userOnDB = getUserReference(userId).get().get().toObject(User.class);
+			List<UserTournament> userTournaments = userOnDB.getUserTournaments()
+												.stream()
+												.filter(userTournament -> userTournament.getUserTournamentStatus().equals(TeamTournamentStatus.ACTIVE))
+												.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournamentId))
+												.collect(Collectors.toList());
+			UserTournament userTournament = userTournaments.get(0);
+			return userTournament.getUserTournamentMatches()
+					.stream()
+					.filter(match -> match.getMatchStatus().equals(MatchStatus.ACTIVE))
+					.collect(Collectors.toList());
+		}
+		return new ArrayList<>();
+	}
+	
 	final long ONE_WEEK_IN_MILLISECONDS = 604800000;
 	
 	public List<Tournament> getAllTournamentsAfterOneWeek() throws InterruptedException, ExecutionException{
@@ -214,7 +233,7 @@ public class TournamentService {
 			tournament.setTournamentModerator(user);
 			tournament.setTournamentLeaderboardForLeague(new ArrayList<>());
 			tournament.setTournamentTeamBracketStack(new Stack<>());
-			tournament.setStartedTournamentStatus(false);
+			tournament.setStartedTournament(false);
 			addModeratorRoleToUser(user);
 			DocumentReference reference = getTournamentsCollection().add(tournament).get();
 			String documentId = reference.getId();
