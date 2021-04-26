@@ -159,14 +159,6 @@ public class TeamTournamentController {
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
-	@PostMapping(value="/teamTournaments/start")
-	public ResponseEntity<Tournament> startTournament(@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
-		Tournament newTournament = teamTournamentService.activateTournament(tournament);
-		if(newTournament != null) {
-			return new ResponseEntity<Tournament>(newTournament, HttpStatus.OK);
-		}
-		return new ResponseEntity<Tournament>(newTournament, HttpStatus.NOT_FOUND);
-	}
 	
 	@DeleteMapping(value = "/teamTournaments/cod/remove")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")

@@ -220,9 +220,7 @@ public class TournamentService {
 			String documentId = reference.getId();
 			WriteBatch batch = firestore.batch();
 			batch.update(reference, "tournamentId", documentId);
-			batch.commit().get()
-					.stream()
-					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			batch.commit().get();
 			return "Tournament with ID: '" + documentId + "' was created succesfully";
 		}
 		return "Not found.";
@@ -308,5 +306,18 @@ public class TournamentService {
 			results.forEach(result -> 
 				System.out.println("Update Time: " + result.getUpdateTime()));
 		}
+	}
+	
+	public Tournament activateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
+		if(isActiveTournament(tournament.getTournamentId())) {			
+			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
+			WriteBatch batch = firestore.batch();
+			batch.update(tourneyReference, "startedTournamentStatus", true);
+			batch.commit().get()
+					.stream()
+					.forEach( result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			return tourneyReference.get().get().toObject(Tournament.class);
+		}
+		return null;
 	}
 }

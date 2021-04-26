@@ -134,7 +134,7 @@ public class TournamentController {
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
-	@PutMapping(value = "tournaments/update")
+	@PutMapping(value = "/tournaments/update")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<MessageResponse> updateTournament(@RequestBody Tournament tournament) throws InterruptedException, ExecutionException{
 		String response = tournamentService.updateTournament(tournament);
@@ -142,5 +142,14 @@ public class TournamentController {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+	}
+	
+	@PostMapping(value="/tournaments/start")
+	public ResponseEntity<Tournament> startTournament(@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
+		Tournament newTournament = tournamentService.activateTournament(tournament);
+		if(newTournament != null) {
+			return new ResponseEntity<Tournament>(newTournament, HttpStatus.OK);
+		}
+		return new ResponseEntity<Tournament>(newTournament, HttpStatus.NOT_FOUND);
 	}
 }

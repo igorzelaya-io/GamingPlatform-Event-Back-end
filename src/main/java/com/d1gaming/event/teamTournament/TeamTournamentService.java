@@ -276,7 +276,7 @@ public class TeamTournamentService {
 					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 					boolean isWrittenBatch = false;
 					if(tournamentTeamStack.isEmpty()) {
-						tournamentTeamStack.add(team);
+						tournamentTeamStack.add(teamOnDB);
 					}
 					else {
 						Team localTeam = tournamentTeamStack.pop();
@@ -342,7 +342,7 @@ public class TeamTournamentService {
 					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 					boolean isWrittenBatch = false;
 					if(tournamentTeamStack.isEmpty()) {
-						tournamentTeamStack.add(team);
+						tournamentTeamStack.add(teamOnDB);
 					}
 					else {
 						Team localTeam = tournamentTeamStack.pop();
@@ -688,16 +688,4 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
-	public Tournament activateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
-		if(isActiveTournament(tournament.getTournamentId())) {			
-			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
-			WriteBatch batch = firestore.batch();
-			batch.update(tourneyReference, "startedTournamentStatus", true);
-			batch.commit().get()
-					.stream()
-					.forEach( result -> System.out.println("Update Time: " + result.getUpdateTime()));
-			return tourneyReference.get().get().toObject(Tournament.class);
-		}
-		return null;
-	}
 }
