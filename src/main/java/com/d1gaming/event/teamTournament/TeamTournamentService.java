@@ -243,9 +243,10 @@ public class TeamTournamentService {
 		if(isActiveTournament(tournament.getTournamentId()) && isActive(team.getTeamId())) {
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
 			DocumentReference teamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
+			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
 			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);			
 			List<Match> teamMatches = new ArrayList<>();
-			TeamFifaTournament teamTournamentSubDocument = new TeamFifaTournament(tournamentOnDB, teamMatches, 0, 0, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
+			TeamFifaTournament teamTournamentSubdocument = new TeamFifaTournament(tournamentOnDB, teamMatches, 0, 0, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
 			
 			boolean isAlreadyPartOfTournament = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 																	.getDocuments()
@@ -253,32 +254,14 @@ public class TeamTournamentService {
 																	.map(document -> document.toObject(TeamFifaTournament.class))
 																	.anyMatch(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournament.getTournamentId()));
 			if(!isAlreadyPartOfTournament) {				
-				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
-					DocumentSnapshot teamModeratorSnapshot = transaction.get(teamModeratorReference).get();
-					DocumentSnapshot tourneySnapshot = transaction.get(tourneyReference).get();
-					double teamModeratorTokens = teamModeratorSnapshot.getDouble("userTokens");
-					double tourneyNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
-					if(tournament.getTournamentLimitNumberOfTeams()  > tourneyNumberOfTeams && teamModeratorTokens > tournament.getTournamentEntryFee()) {
-						DocumentReference addedDocumentToTeamFifaTournamentsSubcollection = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamTournamentSubDocument).get();						
-						String documentId = addedDocumentToTeamFifaTournamentsSubcollection.getId();
-						List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
-						tournamentTeamList.add(team);
-						transaction.update(teamModeratorReference, "userTokens", teamModeratorTokens - tournament.getTournamentEntryFee());
-						transaction.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
-						transaction.update(tourneyReference, "tournamentTeams", tournamentTeamList);
-						transaction.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
-						return documentId;
-					}
-					else if(teamModeratorTokens < tournament.getTournamentEntryFee()){
-						return "Not enough tokens to join tournament";
-					}
-					return "Tournament is already full.";
-				});
-				String transactionResult = futureTransaction.get();
-				if(!transactionResult.equals("Tournament is already full.") || !transactionResult.equals("Not enough tokens to join tournament")) {
-					DocumentReference teamFifaTournamentDocumentReference = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(transactionResult);
-					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
+				int teamModeratorTokens = teamModeratorReference.get().get().toObject(User.class).getUserTokens();
+				int currentNumberOfTeamsInTournament = tournamentOnDB.getTournamentNumberOfTeams();
+				if(tournament.getTournamentLimitNumberOfTeams() > currentNumberOfTeamsInTournament && teamModeratorTokens >= tournament.getTournamentEntryFee()) {
 					WriteBatch batch = firestore.batch();
+					DocumentReference addedDocumentToTeamFifaTournamentsSubcollection = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamTournamentSubdocument).get();
+					String documentId = addedDocumentToTeamFifaTournamentsSubcollection.getId();
+					List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
+					tournamentTeamList.add(teamOnDB);
 					List<User> teamUsers = team.getTeamUsers();
 					teamUsers
 						.stream()
@@ -289,30 +272,33 @@ public class TeamTournamentService {
 								e.printStackTrace();
 							}
 						});
+					
+					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 					boolean isWrittenBatch = false;
 					if(tournamentTeamStack.isEmpty()) {
 						tournamentTeamStack.add(team);
 					}
 					else {
 						Team localTeam = tournamentTeamStack.pop();
-						batch.update(teamFifaTournamentDocumentReference, "teamTournamentId", transactionResult);
-						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-						batch.commit().get()
-							.stream()
-							.forEach(result -> System.out.println("Update Time: " +result.getUpdateTime()));
+						WriteBatch matchBatch = firestore.batch();
+						matchBatch.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
+						matchBatch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
+						matchBatch.commit().get();
 						addMatchToFifaTeams(localTeam, team, tournamentOnDB);
 						isWrittenBatch = true;
 					}
 					if(!isWrittenBatch) {
-						batch.update(teamFifaTournamentDocumentReference, "teamTournamentId", transactionResult);
+						batch.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
 						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-						batch.commit().get()
-						.stream()
-						.forEach(result -> System.out.println("Update Time: " +result.getUpdateTime()));
 					}
+					batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
+					batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
+					batch.update(teamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
+					batch.commit().get();
 					return "Team added successfully to tournament.";
+				
 				}
-				return transactionResult;
+				return "Tournament is already full."; 	
 			}
 			return "Team is already part of tournament.";
 		}
@@ -334,66 +320,50 @@ public class TeamTournamentService {
 																	.map(document -> document.toObject(TeamCodTournament.class))
 																	.anyMatch(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentName().equals(tournament.getTournamentName())); 
 			if(!isAlreadyPartOfTournament) {
-				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
-					DocumentSnapshot teamModeratorSnapshot = transaction.get(userTeamModeratorReference).get();
-					DocumentSnapshot tourneySnapshot = transaction.get(tourneyReference).get();
-					double teamModeratorTokens = teamModeratorSnapshot.getDouble("userTokens");
-					double tourneyNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
-					if(tournament.getTournamentLimitNumberOfTeams()  > tourneyNumberOfTeams && teamModeratorTokens > tournament.getTournamentEntryFee()) {
-						DocumentReference addedDocumentToTeamCodTournaments = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamCodTournamentSubdocument).get();
-						String documentId = addedDocumentToTeamCodTournaments.getId();
-						List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();			
-						tournamentTeamList.add(teamOnDB);
-						transaction.update(userTeamModeratorReference, "userTokens", teamModeratorTokens - tournament.getTournamentEntryFee());
-						transaction.update(tourneyReference, "tournamentTeams", tournamentTeamList);
-						transaction.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
-						transaction.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
-						return documentId;
-					}
-					else if(teamModeratorTokens < tournament.getTournamentEntryFee()){
-						return "Not enough tokens to join tournament";
-					}
-					return "Tournament is already full.";
-				});
-				String transactionResult = futureTransaction.get();
-				if(!transactionResult.equals("Not enough tokens to join tournament") || !transactionResult.equals("Tournament is already full.")) {					
-					DocumentReference teamCodTournamentDocumentReference = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(transactionResult);
-					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-					WriteBatch batch = firestore.batch();
+				int teamModeratorTokens = userTeamModeratorReference.get().get().toObject(User.class).getUserTokens();
+				int tournamentCurrentNumberOfTeams = tournamentOnDB.getTournamentNumberOfTeams();
+				if(teamModeratorTokens >= tournament.getTournamentEntryFee() && tournamentCurrentNumberOfTeams < tournament.getTournamentLimitNumberOfTeams()) {
+					DocumentReference addedDocumentToTeamCodTournaments = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamCodTournamentSubdocument).get();
+					String documentId = addedDocumentToTeamCodTournaments.getId();
+					List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
+					tournamentTeamList.add(teamOnDB);
 					List<User> teamUsers = teamOnDB.getTeamUsers();
 					teamUsers
-					.stream()
-					.forEach(user -> {
-						try {
-							addTournamentToUser(user, team, tournament);
-						} catch (InterruptedException | ExecutionException e) {
-							e.printStackTrace();
-						}
-					});
+						.stream()
+						.forEach(user -> {
+							try {
+								addTournamentToUser(user, team, tournament);
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+					
+					WriteBatch batch = firestore.batch();
+					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 					boolean isWrittenBatch = false;
 					if(tournamentTeamStack.isEmpty()) {
 						tournamentTeamStack.add(team);
 					}
 					else {
 						Team localTeam = tournamentTeamStack.pop();
-						batch.update(teamCodTournamentDocumentReference, "teamCodTournamentId", transactionResult);
-						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-						batch.commit().get()
-							.stream()
-							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	
+						WriteBatch matchBatch = firestore.batch();
+						matchBatch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
+						matchBatch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
+						matchBatch.commit().get();
 						addMatchToCodTeams(localTeam, teamOnDB, tournamentOnDB);					
 						isWrittenBatch = true;
 					}
 					if(!isWrittenBatch) {
-						batch.update(teamCodTournamentDocumentReference, "teamCodTournamentId", transactionResult);
+						batch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
 						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-						batch.commit().get()
-							.stream()
-							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
 					}				
+					batch.update(userTeamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
+					batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
+					batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
+					batch.commit().get();
 					return "Team added successfully to tournament.";
 				}
-				return transactionResult;
+				return "Tournament is already full.";
 			}
 			return "Team is already part of tournament.";
 		}
@@ -411,9 +381,7 @@ public class TeamTournamentService {
 			userTournamentList.add(userTournament);
 			WriteBatch batch = firestore.batch();
 			batch.update(userReference, "userTournaments", userTournamentList);
-			batch.commit().get()
-				.stream()
-				.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			batch.commit().get();
 			return "User tournament added.";
 		}
 		return "Not found.";
@@ -429,28 +397,17 @@ public class TeamTournamentService {
 										.stream()
 										.anyMatch(tournamentTeam -> tournamentTeam.getTeamName().equals(team.getTeamName()));
 			if(isPartOfTournament) {
-				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
-					DocumentSnapshot teamModeratorSnapshot = transaction.get(userTeamModeratorReference).get();
-					DocumentSnapshot tourneySnapshot = transaction.get(tournamentReference).get();
-					double userTokens = teamModeratorSnapshot.getDouble("userTokens");
-					double tournamentNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
-					List<Team> newTournamentTeamList = tournamentTeamList
-							.stream()
-							.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
-							.collect(Collectors.toList());
-					
-					transaction.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
-					transaction.update(userTeamModeratorReference, "userTokens", userTokens + tournament.getTournamentEntryFee());
-					transaction.update(tournamentReference, "tournamentNumberOfTeams", tournamentNumberOfTeams - 1 );
-					return "Team removed from Tournament";
-				});
-				
 				List<TeamCodTournament> teamCodTournamentList = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 														.getDocuments()
 														.stream()
 														.map(document -> document.toObject(TeamCodTournament.class))
 														.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournament.getTournamentId()))
 														.collect(Collectors.toList()); 
+				
+				List<Team> newTournamentTeamList = tournamentTeamList
+						.stream()
+						.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
+						.collect(Collectors.toList());				
 				
 				WriteBatch batch = firestore.batch();
 				List<User> teamUsers = team.getTeamUsers();
@@ -483,11 +440,12 @@ public class TeamTournamentService {
 					DocumentReference invalidDocument = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamCodTournamentList.get(0).getTeamCodTournamentId());
 					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
 				}
+				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
+				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
+				batch.update(userTeamModeratorReference, "userTokens", FieldValue.increment(tournament.getTournamentEntryFee()));
 				batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
-				batch.commit().get()
-							.stream()
-							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	
-							 
+				batch.commit().get();
+				return "Team removed successfully.";
 			}							
 		}
 		return "Not found.";
@@ -503,21 +461,14 @@ public class TeamTournamentService {
 										.stream()
 										.anyMatch(tournamentTeam -> tournamentTeam.getTeamName().equals(team.getTeamName()));
 			if(isPartOfTournament) {
-				ApiFuture<String> futureTransaction = firestore.runTransaction(transaction -> {
-					DocumentSnapshot teamModeratorSnapshot = transaction.get(userTeamModeratorReference).get();
-					DocumentSnapshot tourneySnapshot = transaction.get(tournamentReference).get();
-					double userTokens = teamModeratorSnapshot.getDouble("userTokens");
-					double tournamentNumberOfTeams = tourneySnapshot.getDouble("tournamentNumberOfTeams");
-					List<Team> newTournamentTeamList = tournamentTeamList
-							.stream()
-							.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
-							.collect(Collectors.toList());
+				
 					
-					transaction.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
-					transaction.update(userTeamModeratorReference, "userTokens", userTokens + tournament.getTournamentEntryFee());
-					transaction.update(tournamentReference, "tournamentNumberOfTeams", tournamentNumberOfTeams - 1 );
-					return "Team removed from Tournament";
-				});
+				List<Team> newTournamentTeamList = tournamentTeamList
+						.stream()
+						.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
+						.collect(Collectors.toList());
+				
+					
 				List<TeamFifaTournament> teamFifaTournamentsList = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 														.getDocuments()
 														.stream()
@@ -555,10 +506,12 @@ public class TeamTournamentService {
 					DocumentReference invalidDocument = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId());
 					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
 				}
+				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
+				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
+				batch.update(userTeamModeratorReference, "userTokens", FieldValue.increment(tournament.getTournamentEntryFee()));
 				batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
-				batch.commit().get()
-							.stream()
-							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));	
+				batch.commit().get();
+				return "Team removed from tournament";
 							 
 			}							
 		}
@@ -580,9 +533,7 @@ public class TeamTournamentService {
 				userTournaments.add(userTournament);
 				WriteBatch batch = firestore.batch();
 				batch.update(userReference, "userTournaments", userTournaments);
-				batch.commit().get()
-							.stream()
-							.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+				batch.commit().get();
 				return "Removed Tournament from user.";
 			}
 		}
@@ -674,6 +625,7 @@ public class TeamTournamentService {
 			Match match = new Match(matchTournament, localTeam, awayTeam, 0, 0, MatchStatus.ACTIVE);
 			DocumentReference matchTourneyDocument = getTournamentReference(matchTournament.getTournamentId()).collection("tournamentMatches").add(match).get();
 			String matchDocumentId = matchTourneyDocument.getId();
+			match.setMatchId(matchDocumentId);
 			localTeamCodTournamentMatchesList.add(match);
 			awayTeamCodTournamentMatchesList.add(match);
 			
@@ -681,9 +633,7 @@ public class TeamTournamentService {
 			batch.update(localTeamCodTournamentReference, "teamCodTournamentMatches", localTeamCodTournamentMatchesList);
 			batch.update(awayTeamCodTournamentReference, "teamCodTournamentMatches", awayTeamCodTournamentMatchesList);
 			batch.update(matchTourneyDocument, "matchId", matchDocumentId);
-			batch.commit().get()
-					.stream()
-					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			batch.commit().get();
 			List<User> localTeamUsersList = localTeam.getTeamUsers();
 			List<User> awayTeamUsersList = awayTeam.getTeamUsers();
 			localTeamUsersList
