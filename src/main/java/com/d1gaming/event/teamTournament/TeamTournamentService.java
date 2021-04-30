@@ -29,6 +29,7 @@ import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
+import com.google.cloud.firestore.WriteResult;
 
 @Service
 public class TeamTournamentService {
@@ -105,7 +106,11 @@ public class TeamTournamentService {
 													   .map(document -> document.toObject(Match.class))
 													   .filter(match -> match.getMatchId().equals(matchId))
 													   .collect(Collectors.toList());
-		return Optional.of(tournamentMatchesList.get(0));
+		if(!tournamentMatchesList.isEmpty()) {
+			
+			return Optional.of(tournamentMatchesList.get(0));
+		}
+		return null;
 	}
 	
 	
@@ -369,7 +374,7 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
-	//Add Tournament to userTournament subcollection.
+	//Add Tournament to userTournament.
 	public String addTournamentToUser(User user, Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId()) && isActive(team.getTeamId()) && isActiveTournament(tournament.getTournamentId())) {
 			List<Match> userTournamentMatches = new ArrayList<>();
@@ -427,7 +432,9 @@ public class TeamTournamentService {
 				Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 				if(!teamCodTournamentMatchesList.isEmpty()) {
 					Match teamMatchOnTournamentToArrange = teamCodTournamentMatchesList.get(0);
+					getTournamentReference(tournament.getTournamentId()).collection("tournamentMatches").document(teamMatchOnTournamentToArrange.getMatchId()).delete();
 					Team teamToAssignMatchTo = teamMatchOnTournamentToArrange.getMatchAwayTeam().getTeamId().equals(team.getTeamId()) ? teamMatchOnTournamentToArrange.getMatchLocalTeam() : teamMatchOnTournamentToArrange.getMatchAwayTeam();
+					removeMatchFromFifaTeams(teamMatchOnTournamentToArrange, teamToAssignMatchTo, tournamentOnDB);
 					if(tournamentTeamStack.isEmpty()) {
 						tournamentTeamStack.push(teamToAssignMatchTo);
 					}
@@ -440,8 +447,7 @@ public class TeamTournamentService {
 					tournamentTeamStack.pop();
 				}
 				if(!teamCodTournamentList.isEmpty()) {
-					DocumentReference invalidDocument = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamCodTournament.getTeamCodTournamentId());
-					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
+					getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamCodTournament.getTeamCodTournamentId()).delete();
 				}
 				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
 				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
@@ -496,21 +502,20 @@ public class TeamTournamentService {
 				if(!teamCodTournamentMatchesList.isEmpty()) {
 					Match teamMatchToArrange = teamCodTournamentMatchesList.get(0);
 					Team teamToAssignMatchTo = teamMatchToArrange.getMatchAwayTeam().getTeamId().equals(team.getTeamId()) ? teamMatchToArrange.getMatchLocalTeam() : teamMatchToArrange.getMatchAwayTeam();
+					removeMatchFromCodTeams(teamMatchToArrange, teamToAssignMatchTo, tournamentOnDB);
 					if(tournamentTeamStack.isEmpty()) {
 						tournamentTeamStack.push(teamToAssignMatchTo);
 					}
 					else {
 						Team poppedTeam = tournamentTeamStack.pop();
-						addMatchToFifaTeams(poppedTeam, teamToAssignMatchTo, tournamentOnDB);
-						
+						addMatchToFifaTeams(poppedTeam, teamToAssignMatchTo, tournamentOnDB);	
 					}
 				}
 				else {					
 					tournamentTeamStack.pop();
 				}
 				if(!teamFifaTournamentsList.isEmpty()) {
-					DocumentReference invalidDocument = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId());
-					batch.update(invalidDocument, "teamTournamentStatus", TeamTournamentStatus.INACTIVE);
+					getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId()).delete();
 				}
 				batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
 				batch.update(tournamentReference, "tournamentNumberOfTeams", FieldValue.increment(-1));
@@ -524,6 +529,93 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
+	public void removeMatchFromCodTeams(Match match, Team team, Tournament tournament) throws InterruptedException, ExecutionException {
+		Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
+		List<TeamCodTournament> teamCodTournamentsWithTournament = getTeamReference(team.getTeamId()).collection("teamCodTournaments").get().get()
+																		.getDocuments()
+																		.stream()
+																		.map(document -> document.toObject(TeamCodTournament.class))
+																		.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.collect(Collectors.toList());
+		if(!teamCodTournamentsWithTournament.isEmpty()) {			
+			TeamCodTournament teamCodTournament = teamCodTournamentsWithTournament.get(0);
+			DocumentReference teamCodTournamentReference = getTeamReference(team.getTeamId()).collection("teamCodTournaments").document(teamCodTournament.getTeamCodTournamentId());
+			List<Match> newTeamCodTournamentMatches = teamCodTournament.getTeamCodTournamentMatches()
+																		.stream()
+																		.filter(teamMatch -> !teamMatch.getMatchId().equals(match.getMatchId()))
+																		.collect(Collectors.toList());
+			WriteBatch batch = firestore.batch();
+			batch.update(teamCodTournamentReference, "teamCodTournamentMatches", newTeamCodTournamentMatches);
+			batch.commit().get();
+			List<User> teamUsers = teamOnDB.getTeamUsers();
+			teamUsers
+				.stream()
+				.forEach(user -> {
+					try {
+						removeMatchFromUserTournament(match, user, tournament);
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+		}
+	}
+	
+	public void removeMatchFromFifaTeams(Match match, Team team, Tournament tournament) throws InterruptedException, ExecutionException {
+		Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
+		List<TeamFifaTournament> teamFifaTournamentWithTournament = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
+																		.getDocuments()
+																		.stream()
+																		.map(document -> document.toObject(TeamFifaTournament.class))
+																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.collect(Collectors.toList());
+		if(!teamFifaTournamentWithTournament.isEmpty()) {
+			TeamFifaTournament teamFifaTournament = teamFifaTournamentWithTournament.get(0);
+			DocumentReference teamFifaTournamentReference = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId());
+			List<Match> newTeamFifaTournamentMatches = teamFifaTournament.getTeamTournamentMatches()
+																		.stream()
+																		.filter(teamMatch -> teamMatch.getMatchId().equals(match.getMatchId()))
+																		.collect(Collectors.toList());
+			WriteBatch batch = firestore.batch();
+			batch.update(teamFifaTournamentReference, "teamTournamentMatches", newTeamFifaTournamentMatches);
+			batch.commit().get();
+			List<User> teamUsers = teamOnDB.getTeamUsers();
+				teamUsers
+					.stream()
+					.forEach(user -> {
+						try {
+							removeMatchFromUserTournament(match, user, tournament);
+						} catch (InterruptedException | ExecutionException e) {
+							e.printStackTrace();
+						}
+					});
+		}
+		
+	}
+	
+	public void removeMatchFromUserTournament(Match match, User user, Tournament tournament) throws InterruptedException, ExecutionException {
+		DocumentReference userReference = firestore.collection("users").document(user.getUserId());
+		List<UserTournament> userTournamentList = user.getUserTournaments();
+		List<UserTournament> userTournamentsWithTournament = user.getUserTournaments()
+																.stream()
+																.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+																.collect(Collectors.toList());
+		if(!userTournamentsWithTournament.isEmpty()) {
+			UserTournament userTournament = userTournamentsWithTournament.get(0);
+			int indexOfUserTournament = userTournamentList.indexOf(userTournament);
+			userTournamentList.remove(indexOfUserTournament);
+			List<Match> userTournamentMatches = userTournament.getUserTournamentMatches();
+			List<Match> newUserTournamentMatches = userTournamentMatches
+														.stream()
+														.filter(userMatch -> !userMatch.getMatchId().equals(match.getMatchId()))
+														.collect(Collectors.toList());
+			userTournament.setUserTournamentMatches(newUserTournamentMatches);
+			userTournamentList.add(userTournament);
+			WriteBatch batch = firestore.batch();
+			batch.update(userReference,"userTournaments", userTournamentList);
+			batch.commit().get();
+		}
+	}
+	
 	public String removeTournamentFromUser(User user, Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId()) && isActive(team.getTeamId()) && isActiveTournament(tournament.getTournamentId())) {
 			DocumentReference userReference = firestore.collection("users").document(user.getUserId());
@@ -534,13 +626,13 @@ public class TeamTournamentService {
 																		.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
 																		.collect(Collectors.toList());
 			if(!userTournamentsListWithTournament.isEmpty()) {				
-				UserTournament userTournament = userTournamentsListWithTournament.get(0);
-				int indexOfUserTournament = userTournaments.indexOf(userTournament);
-				userTournaments.remove(indexOfUserTournament);
-				userTournament.setUserTournamentStatus(TeamTournamentStatus.INACTIVE);
-				userTournaments.add(userTournament);
+				List<UserTournament> userTournamentsWithoutTournament = userTournaments
+																		.stream()
+																		.filter(userTournament -> !userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.collect(Collectors.toList());
+						
 				WriteBatch batch = firestore.batch();
-				batch.update(userReference, "userTournaments", userTournaments);
+				batch.update(userReference, "userTournaments", userTournamentsWithoutTournament);
 				batch.commit().get();
 				return "Removed Tournament from user.";
 			}
@@ -696,4 +788,165 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
+	public String uploadCodMatchResult(Match match, String tournamentId, Team team) throws InterruptedException, ExecutionException {
+		if(isActiveTournament(tournamentId)) {
+			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
+			DocumentReference tournamentReference = getTournamentReference(tournamentId);
+			match.setMatchStatus(MatchStatus.INACTIVE);
+			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
+			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
+			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
+			Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
+			Team winningTeam = match.getMatchWinningTeam();
+			if(tournamentTeamStack.isEmpty()) {
+				tournamentTeamStack.add(winningTeam);
+			}
+			else {
+				Team poppedTeam = tournamentTeamStack.pop();
+				addMatchToCodTeams(poppedTeam, winningTeam, tournamentOnDB);
+			}
+			WriteBatch batch = firestore.batch();
+			batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
+			batch.commit().get();
+			return "Match results uploaded successfully.";
+		}
+		return "Not found.";
+	}
+	
+	public String uploadFifaMatchResult(Match match, String tournamentId, Team team) throws InterruptedException, ExecutionException {
+		if(isActiveTournament(tournamentId)) {
+			DocumentReference tournamentReference = getTournamentReference(tournamentId);
+			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
+			match.setMatchStatus(MatchStatus.INACTIVE);
+			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
+			addInvalidStatusToTeamFifaTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
+			addInvalidStatusToTeamFifaTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
+			Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
+			Team winningTeam = match.getMatchWinningTeam();
+			if(tournamentTeamStack.isEmpty()) {
+				tournamentTeamStack.add(winningTeam);
+			}
+			else {
+				Team poppedTeam = tournamentTeamStack.pop();
+				addMatchToFifaTeams(poppedTeam, winningTeam, tournamentOnDB);
+			}
+			WriteBatch batch = firestore.batch();
+			batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
+			batch.commit().get();
+			return "Match results uploaded successfully.";
+		}
+		return "Not found.";
+	}
+	
+	public void addInvalidStatusToTeamCodTournamentMatch(String tournamentId, Team team, Match match) throws InterruptedException, ExecutionException {
+		if(isActive(team.getTeamId())) {
+			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
+			List<TeamCodTournament> teamCodTournamentsListWithTournament = getTeamReference(team.getTeamId()).collection("teamCodTournaments").get().get()
+																						.getDocuments()
+																						.stream()
+																						.map(document -> document.toObject(TeamCodTournament.class))
+																						.filter(tournament -> tournament.getTeamCodTournament().getTournamentId().equals(tournamentId))
+																						.collect(Collectors.toList());
+			if(!teamCodTournamentsListWithTournament.isEmpty()) {
+				TeamCodTournament teamCodTournament = teamCodTournamentsListWithTournament.get(0);
+				List<Match> teamCodTournamentMatches = teamCodTournament.getTeamCodTournamentMatches();
+				List<Match> teamCodTournamentMatchesListWithMatch = teamCodTournament.getTeamCodTournamentMatches()
+																						.stream()
+																						.filter(teamMatch -> teamMatch.getMatchId().equals(match.getMatchId()))
+																						.collect(Collectors.toList());
+				
+				if(!teamCodTournamentMatchesListWithMatch.isEmpty()) {
+					Match matchOnDB = teamCodTournamentMatchesListWithMatch.get(0);
+					int indexOfMatch = teamCodTournamentMatches.indexOf(matchOnDB);
+					teamCodTournamentMatches.remove(indexOfMatch);
+					teamCodTournamentMatches.add(match);
+					DocumentReference teamCodTournamentReference = getTeamReference(team.getTeamId()).collection("teamCodTournaments").document(teamCodTournament.getTeamCodTournamentId());
+					WriteBatch batch = firestore.batch();
+					batch.update(teamCodTournamentReference, "teamCodTournamentMatches", teamCodTournamentMatches);
+					batch.commit().get();
+				}
+			}
+			List<User> teamUsers = teamOnDB.getTeamUsers();
+			teamUsers
+				.stream()
+				.forEach(user -> {
+					try {
+						addInvalidStatusToUserMatch(user, tournamentId, match);
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+		}
+	}
+	
+	public void addInvalidStatusToTeamFifaTournamentMatch(String tournamentId, Team team, Match match) throws InterruptedException, ExecutionException {
+		if(isActive(team.getTeamId())) {
+			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
+			List<TeamFifaTournament> teamFifaTournamentsListWithTournament = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
+																					.getDocuments()
+																					.stream()
+																					.map(document -> document.toObject(TeamFifaTournament.class))
+																					.filter(tournament -> tournament.getTeamTournament().getTournamentId().equals(tournamentId))
+																					.collect(Collectors.toList());
+			if(!teamFifaTournamentsListWithTournament.isEmpty()) {
+				TeamFifaTournament teamFifaTournament = teamFifaTournamentsListWithTournament.get(0);
+				List<Match> teamFifaTournamentMatches = teamFifaTournament.getTeamTournamentMatches();
+				List<Match> teamFifaTournamentMatchesListWithMatch = teamFifaTournament.getTeamTournamentMatches()	
+																						.stream()
+																						.filter(teamMatch -> teamMatch.getMatchId().equals(match.getMatchId()))
+																						.collect(Collectors.toList());
+				if(!teamFifaTournamentMatchesListWithMatch.isEmpty()) {
+					Match matchOnDB = teamFifaTournamentMatchesListWithMatch.get(0);
+					int indexOfMatch = teamFifaTournamentMatches.indexOf(matchOnDB);
+					teamFifaTournamentMatches.remove(indexOfMatch);
+					teamFifaTournamentMatches.add(match);
+					DocumentReference teamFifaTournamentReference = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId());
+					WriteBatch batch = firestore.batch();
+					batch.update(teamFifaTournamentReference, "teamTournamentMatches", teamFifaTournamentMatches);
+					batch.commit().get();
+				}
+			}
+			List<User> teamUsers = teamOnDB.getTeamUsers();
+			teamUsers
+				.stream()
+				.forEach(user -> {
+					try {
+						addInvalidStatusToUserMatch(user, tournamentId, match);
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+		}
+	}
+	
+	public void addInvalidStatusToUserMatch(User user, String tournamentId, Match match) throws InterruptedException, ExecutionException {
+		DocumentReference userReference = firestore.collection("users").document(user.getUserId());
+		List<UserTournament> userTournamentList = user.getUserTournaments();
+		List<UserTournament> userTournamentsWithTournament = user.getUserTournaments()
+																.stream()
+																.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournamentId))
+																.collect(Collectors.toList());
+		if(!userTournamentsWithTournament.isEmpty()) {
+			UserTournament userTournament = userTournamentsWithTournament.get(0);
+			int indexOfUserTournament = userTournamentList.indexOf(userTournament);
+			userTournamentList.remove(indexOfUserTournament);
+			List<Match> userTournamentMatches = userTournament.getUserTournamentMatches();
+			
+			List<Match> userTournamentMatchesWithMatch = userTournamentMatches
+														.stream()
+														.filter(userMatch -> userMatch.getMatchId().equals(match.getMatchId()))
+														.collect(Collectors.toList());
+			Match matchOnDB = userTournamentMatchesWithMatch.get(0);
+			int indexOfMatch = userTournamentMatches.indexOf(matchOnDB);
+			userTournamentMatches.remove(indexOfMatch);
+			userTournamentMatches.add(match);
+			userTournament.setUserTournamentMatches(userTournamentMatches);
+			userTournamentList.add(userTournament);
+			WriteBatch batch = firestore.batch();
+			batch.update(userReference,"userTournaments", userTournamentList);
+			batch.commit().get();
+		}
+	}
 }

@@ -245,12 +245,6 @@ public class TournamentService {
 		return "Not found.";
 	}
 	
-//	public String activateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
-//		if(isActiveTournament(tournament.getTournamentId())) {
-//			DocumentReference tournamentReference = tournament
-//		}
-//	}
-	
 	public String deleteTournament(Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId())) {
 			DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
@@ -331,7 +325,7 @@ public class TournamentService {
 		if(isActiveTournament(tournament.getTournamentId())) {			
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
 			WriteBatch batch = firestore.batch();
-			batch.update(tourneyReference, "startedTournamentStatus", true);
+			batch.update(tourneyReference, "startedTournament", true);
 			batch.commit().get()
 					.stream()
 					.forEach( result -> System.out.println("Update Time: " + result.getUpdateTime()));

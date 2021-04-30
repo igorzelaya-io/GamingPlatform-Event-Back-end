@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.match.Match;
+import com.d1gaming.library.request.MatchTournamentRequest;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -121,7 +122,8 @@ public class TournamentController {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
-	} 
+	}
+	
 	
 	@DeleteMapping(value = "/tournaments/delete")
 	@PreAuthorize("hasRole('TOURNEY_ADMIN') or hasRole('ADMIN')")

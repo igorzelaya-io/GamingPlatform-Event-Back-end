@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.match.Match;
+import com.d1gaming.library.request.MatchTournamentRequest;
 import com.d1gaming.library.request.TeamTournamentRequest;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
@@ -120,6 +121,32 @@ public class TeamTournamentController {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.BAD_REQUEST);
 		}
 		
+		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/teamTournaments/matches/cod/save")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TEAM_ADMIN')")
+	public ResponseEntity<MessageResponse> uploadCodMatchResult(@RequestBody(required = true)MatchTournamentRequest matchTournamentRequest) throws InterruptedException, ExecutionException{
+		String response = teamTournamentService.uploadCodMatchResult(matchTournamentRequest.getMatchTournamentMatch(), matchTournamentRequest.getMatchTournamentTournamentId(), matchTournamentRequest.getMatchTournamentTeam());
+		if(response.equals("Not found.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
+		}
+		else if(response.equals("Your match is disputed, please contact D1Gaming.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+		}
+		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/teamTournaments/matches/fifa/save")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TEAM_ADMIN')")
+	public ResponseEntity<MessageResponse> uploadFifaMatchResult(@RequestBody(required = true)MatchTournamentRequest matchTournamentRequest) throws InterruptedException, ExecutionException{
+		String response = teamTournamentService.uploadFifaMatchResult(matchTournamentRequest.getMatchTournamentMatch(), matchTournamentRequest.getMatchTournamentTournamentId(), matchTournamentRequest.getMatchTournamentTeam());
+		if(response.equals("Not found.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
+		}
+		else if(response.equals("Your match is disputed, please contact D1Gaming.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+		}
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
