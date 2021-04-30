@@ -642,6 +642,8 @@ public class TeamTournamentService {
 	
 	public String addMatchToFifaTeams(Team localTeam, Team awayTeam, Tournament matchTournament) throws InterruptedException, ExecutionException {
 		if(isActive(localTeam.getTeamId()) && isActive(awayTeam.getTeamId()) && isActiveTournament(matchTournament.getTournamentId())) {
+			Team localTeamOnDB = getTeamReference(localTeam.getTeamId()).get().get().toObject(Team.class);
+			Team awayTeamOnDB = getTeamReference(awayTeam.getTeamId()).get().get().toObject(Team.class);
 			List<TeamFifaTournament> localTeamFifaTournamentList = getFifaTournamentsSubcollectionFromTeam(localTeam.getTeamId()).get().get()
 																		.getDocuments()
 																		.stream()
@@ -660,7 +662,7 @@ public class TeamTournamentService {
 			DocumentReference awayTeamFifaTournamentReference = getFifaTournamentReferenceFromTeam(awayTeam.getTeamId(), awayTeamTournament.getTeamTournamentId());
 			List<Match> localTeamFifaTournamentMatchesList = localTeamTournament.getTeamTournamentMatches();
 			List<Match> awayTeamFifaTournamentMatchesList = awayTeamTournament.getTeamTournamentMatches();
-			Match match = new Match(matchTournament, localTeam, awayTeam, 0, 0, MatchStatus.ACTIVE);
+			Match match = new Match(matchTournament, localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE);
 			DocumentReference addedDocument = getTournamentReference(matchTournament.getTournamentId()).collection("tournamentMatches").add(match).get();
 			String matchDocumentId = addedDocument.getId();
 			match.setMatchId(matchDocumentId);
@@ -670,11 +672,9 @@ public class TeamTournamentService {
 			batch.update(localTeamFifaTournamentReference, "teamTournamentMatches", localTeamFifaTournamentMatchesList);
 			batch.update(awayTeamFifaTournamentReference, "teamTournamentMatches", awayTeamFifaTournamentMatchesList);
 			batch.update(addedDocument, "matchId", matchDocumentId);
-			batch.commit().get()
-						.stream()
-						.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-			List<User> localTeamUsersList = localTeam.getTeamUsers();
-			List<User> awayTeamUsersList = awayTeam.getTeamUsers();
+			batch.commit().get();
+			List<User> localTeamUsersList = localTeamOnDB.getTeamUsers();
+			List<User> awayTeamUsersList = awayTeamOnDB.getTeamUsers();
 			localTeamUsersList
 					.stream()
 					.forEach(user -> {
@@ -704,6 +704,8 @@ public class TeamTournamentService {
 	
 	public String addMatchToCodTeams(Team localTeam, Team awayTeam, Tournament matchTournament) throws InterruptedException, ExecutionException {
 		if(isActive(localTeam.getTeamId()) && isActive(awayTeam.getTeamId()) && isActiveTournament(matchTournament.getTournamentId())) {
+			Team localTeamOnDB = getTeamReference(localTeam.getTeamId()).get().get().toObject(Team.class);
+			Team awayTeamOnDB = getTeamReference(awayTeam.getTeamId()).get().get().toObject(Team.class);
 			List<TeamCodTournament> localTeamCodTournamentsList = getCodTournamentsSubcollectionFromTeam(localTeam.getTeamId()).get().get()
 																		.getDocuments()
 																		.stream()
@@ -722,7 +724,7 @@ public class TeamTournamentService {
 			DocumentReference awayTeamCodTournamentReference = getCodTournamentReferenceFromTeam(awayTeam.getTeamId(), awayTeamCodTournament.getTeamCodTournamentId());
 			List<Match> localTeamCodTournamentMatchesList = localTeamCodTournament.getTeamCodTournamentMatches();
 			List<Match> awayTeamCodTournamentMatchesList = awayTeamCodTournament.getTeamCodTournamentMatches();
-			Match match = new Match(matchTournament, localTeam, awayTeam, 0, 0, MatchStatus.ACTIVE);
+			Match match = new Match(matchTournament, localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE);
 			DocumentReference matchTourneyDocument = getTournamentReference(matchTournament.getTournamentId()).collection("tournamentMatches").add(match).get();
 			String matchDocumentId = matchTourneyDocument.getId();
 			match.setMatchId(matchDocumentId);
@@ -734,8 +736,8 @@ public class TeamTournamentService {
 			batch.update(awayTeamCodTournamentReference, "teamCodTournamentMatches", awayTeamCodTournamentMatchesList);
 			batch.update(matchTourneyDocument, "matchId", matchDocumentId);
 			batch.commit().get();
-			List<User> localTeamUsersList = localTeam.getTeamUsers();
-			List<User> awayTeamUsersList = awayTeam.getTeamUsers();
+			List<User> localTeamUsersList = localTeamOnDB.getTeamUsers();
+			List<User> awayTeamUsersList = awayTeamOnDB.getTeamUsers();
 			localTeamUsersList
 					.stream()
 					.forEach(user -> {
@@ -923,8 +925,9 @@ public class TeamTournamentService {
 	
 	public void addInvalidStatusToUserMatch(User user, String tournamentId, Match match) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = firestore.collection("users").document(user.getUserId());
-		List<UserTournament> userTournamentList = user.getUserTournaments();
-		List<UserTournament> userTournamentsWithTournament = user.getUserTournaments()
+		User userOnDB = firestore.collection("users").document(user.getUserId()).get().get().toObject(User.class);
+		List<UserTournament> userTournamentList = userOnDB.getUserTournaments();
+		List<UserTournament> userTournamentsWithTournament = userOnDB.getUserTournaments()
 																.stream()
 																.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournamentId))
 																.collect(Collectors.toList());

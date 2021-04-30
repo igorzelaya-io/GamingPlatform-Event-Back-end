@@ -178,8 +178,9 @@ public class TeamService {
 		if(isActiveUser(user.getUserId()) && isActive(team.getTeamId())) {
 			DocumentReference userReference = getUserReference(user.getUserId());
 			DocumentReference teamReference = getTeamReference(team.getTeamId());
+			User userOnDB = userReference.get().get().toObject(User.class);
 			List<User> currTeamUserList = team.getTeamUsers();
-			List<Team> currUserTeamList = user.getUserTeams();
+			List<Team> currUserTeamList = userOnDB.getUserTeams();
 			boolean alreadyContainsTeam = currUserTeamList
 											.stream()
 											.anyMatch(teamInList -> teamInList.getTeamName().equals(team.getTeamName()));
@@ -187,6 +188,7 @@ public class TeamService {
 			boolean alreadyContainsUser = currTeamUserList
 											.stream()
 											.anyMatch(userInList -> userInList.getUserName().equals(user.getUserName()));
+			
 			if(!alreadyContainsTeam && !alreadyContainsUser) {
 				WriteBatch batch = firestore.batch();
 				user.setUserTeams(null);
@@ -195,9 +197,7 @@ public class TeamService {
 				currUserTeamList.add(team);
 				batch.update(teamReference, "teamUsers", currTeamUserList);
 				batch.update(userReference, "userTeams", currUserTeamList);
-				batch.commit().get()
-						.stream()
-						.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+				batch.commit().get();
 				return "Added User to team.";
 			}
 			return "Invalid";	
