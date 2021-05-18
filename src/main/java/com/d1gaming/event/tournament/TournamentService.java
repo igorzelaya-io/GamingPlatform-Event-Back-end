@@ -11,8 +11,11 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.d1gaming.event.teamTournament.TeamTournamentService;
 import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
+import com.d1gaming.library.node.BinaryTree;
+import com.d1gaming.library.node.TreeNode;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamTournamentStatus;
@@ -41,6 +44,9 @@ public class TournamentService {
 	
 	@Autowired
 	private Firestore firestore;
+	
+	@Autowired
+	private TeamTournamentService teamTournamentService;
 	
 	private CollectionReference getTournamentsCollection() {
 		return firestore.collection(this.TOURNAMENTS_COLLECTION);
@@ -324,13 +330,201 @@ public class TournamentService {
 	public Tournament activateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournament.getTournamentId())) {			
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
+			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
+			createNodesForTournament(tournamentOnDB);
 			WriteBatch batch = firestore.batch();
 			batch.update(tourneyReference, "startedTournament", true);
-			batch.commit().get()
-					.stream()
-					.forEach( result -> System.out.println("Update Time: " + result.getUpdateTime()));
+			batch.commit().get();
 			return tourneyReference.get().get().toObject(Tournament.class);
 		}
 		return null;
+	}
+	
+	private void createNodesForTournament(Tournament tournament) throws InterruptedException, ExecutionException {
+		int numberOfMatches = 1;
+		int numberOfTeamsInRound = 1;
+		int numberOfRounds = 1;
+		while(numberOfTeamsInRound > tournament.getTournamentNumberOfTeams() ) {
+			numberOfMatches += 2;
+			numberOfTeamsInRound = numberOfMatches * 2;
+			numberOfRounds++;
+		}
+		numberOfRounds++;
+		final int REMAINING_TEAMS_IN_BRACKET = numberOfTeamsInRound - tournament.getTournamentNumberOfTeams();
+		final int ROUND_ONE_NUMBER_OF_TEAMS = tournament.getTournamentNumberOfTeams() - REMAINING_TEAMS_IN_BRACKET;
+		int roundTwoNumberOfTeams = ROUND_ONE_NUMBER_OF_TEAMS / 2 + REMAINING_TEAMS_IN_BRACKET;
+		
+		TreeNode[] roundOneNodes = new TreeNode[ROUND_ONE_NUMBER_OF_TEAMS / 2];
+		for(int i = 0; i < ROUND_ONE_NUMBER_OF_TEAMS / 2 ; i++) {
+			Team localTeam = tournament.getTournamentTeamBracketStack().pop();
+			Team awayTeam = tournament.getTournamentTeamBracketStack().pop();
+			Match match = createMatchForTeams(awayTeam, localTeam, tournament);
+			TreeNode roundOneNode = new TreeNode(match);
+			roundOneNodes[i] = roundOneNode;
+		}
+		
+		int numberOfTeamsToPushInRoundTwo = (roundTwoNumberOfTeams - ROUND_ONE_NUMBER_OF_TEAMS) / 2;
+		int indexOfRoundOneNode = 0;
+		int numberOfTeamsToPop = REMAINING_TEAMS_IN_BRACKET;
+		boolean isPushedTeamIntoRoundTwo = false;
+		boolean isGreaterNumberOfTeams = ROUND_ONE_NUMBER_OF_TEAMS < roundTwoNumberOfTeams ? true : false;
+		TreeNode[] roundTwoNodes = new TreeNode[roundTwoNumberOfTeams / 2];
+		for(int i = 0; i < roundTwoNumberOfTeams / 2 ; i++) {
+			if(isGreaterNumberOfTeams) {
+				if(!isPushedTeamIntoRoundTwo && numberOfTeamsToPushInRoundTwo != 0) {						
+					TreeNode roundOneNode = roundOneNodes[indexOfRoundOneNode];
+					TreeNode roundTwoNode = new TreeNode();
+					Team awayTeamInRoundTwo = tournament.getTournamentTeamBracketStack().pop();
+					Match roundTwoMatch = createMatchForTeams(awayTeamInRoundTwo, null, tournament);
+					roundTwoNode.setValue(roundTwoMatch);
+					roundTwoNode.setLeft(roundOneNode);
+					roundOneNodes[indexOfRoundOneNode].setRootNode(roundTwoNode);
+					roundTwoNodes[i] = roundTwoNode;
+					numberOfTeamsToPushInRoundTwo--;
+					isPushedTeamIntoRoundTwo = true;
+					indexOfRoundOneNode++;
+				}
+				else {
+					TreeNode roundTwoNode = new TreeNode();
+					Team localTeam = tournament.getTournamentTeamBracketStack().pop(); 
+					Team awayTeam = tournament.getTournamentTeamBracketStack().pop();
+					Match match = createMatchForTeams(awayTeam, localTeam, tournament);
+					roundTwoNode.setValue(match);
+					roundTwoNodes[i] = roundTwoNode;
+					isPushedTeamIntoRoundTwo = false;
+				}
+				
+			}
+			else if(REMAINING_TEAMS_IN_BRACKET > 0){
+				if(!isPushedTeamIntoRoundTwo && numberOfTeamsToPop != 0) {
+					TreeNode roundOneNode = roundOneNodes[indexOfRoundOneNode];
+					TreeNode roundTwoNode = new TreeNode();
+					Team awayTeamInRoundTwo = tournament.getTournamentTeamBracketStack().pop();
+					Match roundTwoMatch = createMatchForTeams(awayTeamInRoundTwo, null, tournament);
+					roundTwoNode.setValue(roundTwoMatch);
+					roundTwoNode.setLeft(roundOneNode);
+					roundOneNode.setRootNode(roundTwoNode);
+					isPushedTeamIntoRoundTwo = true;
+					numberOfTeamsToPop--;
+					indexOfRoundOneNode++;
+				}
+				else {
+					TreeNode roundOneLeftNode = roundOneNodes[indexOfRoundOneNode];
+					TreeNode roundOneRightNode = roundOneNodes[indexOfRoundOneNode + 1];
+					TreeNode roundTwoNode = new TreeNode();
+					Match match = new Match();
+					roundTwoNode.setValue(match);
+					roundTwoNode.setLeft(roundOneLeftNode);
+					roundTwoNode.setRight(roundOneRightNode);
+					roundOneLeftNode.setRootNode(roundTwoNode);
+					roundOneRightNode.setRootNode(roundTwoNode);
+					indexOfRoundOneNode += 2;
+				}
+			}
+			else {
+				TreeNode roundOneLeftNode = roundOneNodes[indexOfRoundOneNode];
+				TreeNode roundOneRightNode = roundOneNodes[indexOfRoundOneNode + 1];
+				TreeNode roundTwoNode = new TreeNode();
+				Match roundTwoMatch = new Match();
+				roundTwoNode.setValue(roundTwoMatch);
+				roundTwoNode.setLeft(roundOneLeftNode);
+				roundTwoNode.setRight(roundOneRightNode);
+				roundOneLeftNode.setRootNode(roundTwoNode);
+				roundOneRightNode.setRootNode(roundTwoNode);
+				indexOfRoundOneNode += 2;
+			}
+		}
+		
+		int numberOfRoundsLeft = 0;
+		int numberOfTeamsInRoundTwoToDivide = roundTwoNumberOfTeams;
+		while(numberOfTeamsInRoundTwoToDivide != 2) {
+			roundTwoNumberOfTeams = roundTwoNumberOfTeams / 2;
+			numberOfRoundsLeft++;
+		}
+		final int LAST_ROUND_DEPTH = 1;
+		numberOfRoundsLeft = numberOfRoundsLeft - LAST_ROUND_DEPTH;
+		int roundTwoQuotient = 2;
+		TreeNode[] roundBeforeFinalsNodes = new TreeNode[roundTwoNumberOfTeams / 2];
+		for(int i = 0; i < numberOfRoundsLeft; i++) {
+			int roundXNumberOfTeams = roundTwoNumberOfTeams / roundTwoQuotient;
+			TreeNode[] roundXNodes = new TreeNode[roundXNumberOfTeams / 2];
+			int indexOfRoundXNode = 0;
+			if(i == 0) {
+				for(int j = 0; j < roundXNumberOfTeams / 2; j++) {
+					 TreeNode roundXNode = new TreeNode();
+					 final Match roundXMatch = new Match();
+					 TreeNode roundTwoLeftNode = roundTwoNodes[indexOfRoundXNode];
+					 TreeNode roundTwoRightNode = roundTwoNodes[indexOfRoundXNode + 1];
+					 roundXNode.setValue(roundXMatch);
+					 roundXNode.setLeft(roundTwoLeftNode);
+					 roundXNode.setRight(roundTwoRightNode);
+					 roundTwoLeftNode.setRootNode(roundXNode);
+					 roundTwoRightNode.setRootNode(roundXNode);
+					 indexOfRoundXNode += 2;
+					 roundXNodes[i] = roundXNode;
+				}
+				roundBeforeFinalsNodes = roundXNodes;
+				roundXNodes = new TreeNode[roundBeforeFinalsNodes.length];
+				indexOfRoundXNode = 0;
+				roundTwoQuotient += 2;
+				continue;
+			}
+			for(int j = 0; j < roundXNumberOfTeams; j++) {
+				TreeNode roundXNode = new TreeNode();
+				final Match roundXMatch = new Match();
+				TreeNode roundBeforeLeftNode = roundBeforeFinalsNodes[indexOfRoundXNode];
+				TreeNode roundBeforeRightNode = roundBeforeFinalsNodes[indexOfRoundXNode + 1];
+				roundXNode.setValue(roundXMatch);
+				roundXNode.setLeft(roundBeforeLeftNode);
+				roundXNode.setRight(roundBeforeRightNode);
+				roundBeforeLeftNode.setRootNode(roundXNode);
+				roundBeforeRightNode.setRootNode(roundXNode);
+				indexOfRoundXNode += 2;
+				roundXNodes[i] = roundXNode;
+			}
+			roundTwoQuotient += 2;
+			indexOfRoundXNode = 0;
+			roundBeforeFinalsNodes = roundXNodes;
+			roundXNodes = new TreeNode[roundBeforeFinalsNodes.length];
+		}
+		final Match finalMatch = new Match();
+		TreeNode roundBeforeFinalsLeftNode = roundBeforeFinalsNodes[0];
+		TreeNode roundBeforeFinalsRightNode = roundBeforeFinalsNodes[1];
+		TreeNode finalRoundNode = new TreeNode();
+		finalRoundNode.setValue(finalMatch);
+		finalRoundNode.setLeft(roundBeforeFinalsLeftNode);
+		finalRoundNode.setRight(roundBeforeFinalsRightNode);
+		roundBeforeFinalsLeftNode.setRootNode(finalRoundNode);
+		roundBeforeFinalsRightNode.setRootNode(finalRoundNode);
+		BinaryTree tournamentTree = new BinaryTree();
+		tournamentTree.setBinaryTreeNodes(finalRoundNode);
+		tournamentTree.setBinaryTreeNumberOfRounds(numberOfRounds);
+		tournament.setTournamentBracketTree(tournamentTree);
+		WriteResult tournamentReference = getTournamentReference(tournament.getTournamentId()).set(tournament).get();
+		System.out.println("Update Time: " + tournamentReference.getUpdateTime());
+	}
+	
+	private Match createMatchForTeams(Team awayTeam, Team localTeam, Tournament tournament) throws InterruptedException, ExecutionException {
+		Match match = new Match();
+		if(localTeam != null) {
+			match.setMatchLocalTeam(localTeam);
+			match.setLocalTeamMatchScore(0);
+			match.setAwayTeamMatchScore(0);
+			match.setMatchAwayTeam(awayTeam);
+			match.setMatchTournament(tournament);
+			match.setUploaded(false);
+			match.setMatchStatus(MatchStatus.ACTIVE);
+			if(tournament.getTournamentGame().equals("Fifa")) {
+				this.teamTournamentService.addMatchToFifaTeams(localTeam, awayTeam, tournament);
+				return match;
+			}
+			this.teamTournamentService.addMatchToCodTeams(localTeam, awayTeam, tournament);
+			return match;
+		}
+		match.setAwayTeamMatchScore(0);
+		match.setMatchAwayTeam(awayTeam);
+		match.setMatchStatus(MatchStatus.ACTIVE);
+		match.setUploaded(false);
+		return match;
 	}
 }

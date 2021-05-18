@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
+import com.d1gaming.library.node.TreeNode;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamCodTournament;
 import com.d1gaming.library.team.TeamFifaTournament;
@@ -276,25 +277,10 @@ public class TeamTournamentService {
 								e.printStackTrace();
 							}
 						});
-					
 					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-					boolean isWrittenBatch = false;
-					if(tournamentTeamStack.isEmpty()) {
-						tournamentTeamStack.add(teamOnDB);
-					}
-					else {
-						Team localTeam = tournamentTeamStack.pop();
-						WriteBatch matchBatch = firestore.batch();
-						matchBatch.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
-						matchBatch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-						matchBatch.commit().get();
-						addMatchToFifaTeams(localTeam, team, tournamentOnDB);
-						isWrittenBatch = true;
-					}
-					if(!isWrittenBatch) {
-						batch.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
-						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-					}
+					tournamentTeamStack.add(teamOnDB);
+					batch.update(addedDocumentToTeamFifaTournamentsSubcollection, "teamTournamentId", documentId);
+					batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
 					batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
 					batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
 					batch.update(teamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
@@ -344,23 +330,9 @@ public class TeamTournamentService {
 					
 					WriteBatch batch = firestore.batch();
 					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-					boolean isWrittenBatch = false;
-					if(tournamentTeamStack.isEmpty()) {
-						tournamentTeamStack.add(teamOnDB);
-					}
-					else {
-						Team localTeam = tournamentTeamStack.pop();
-						WriteBatch matchBatch = firestore.batch();
-						matchBatch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
-						matchBatch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-						matchBatch.commit().get();
-						addMatchToCodTeams(localTeam, teamOnDB, tournamentOnDB);					
-						isWrittenBatch = true;
-					}
-					if(!isWrittenBatch) {
-						batch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
-						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
-					}				
+					tournamentTeamStack.add(teamOnDB);
+					batch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
+					batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
 					batch.update(userTeamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
 					batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
 					batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
@@ -427,24 +399,10 @@ public class TeamTournamentService {
 						}
 					});
 				TeamCodTournament teamCodTournament = teamCodTournamentList.get(0);
-				List<Match> teamCodTournamentMatchesList = teamCodTournament.getTeamCodTournamentMatches();
-				
 				Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-				if(!teamCodTournamentMatchesList.isEmpty()) {
-					Match teamMatchOnTournamentToArrange = teamCodTournamentMatchesList.get(0);
-					getTournamentReference(tournament.getTournamentId()).collection("tournamentMatches").document(teamMatchOnTournamentToArrange.getMatchId()).delete();
-					Team teamToAssignMatchTo = teamMatchOnTournamentToArrange.getMatchAwayTeam().getTeamId().equals(team.getTeamId()) ? teamMatchOnTournamentToArrange.getMatchLocalTeam() : teamMatchOnTournamentToArrange.getMatchAwayTeam();
-					removeMatchFromFifaTeams(teamMatchOnTournamentToArrange, teamToAssignMatchTo, tournamentOnDB);
-					if(tournamentTeamStack.isEmpty()) {
-						tournamentTeamStack.push(teamToAssignMatchTo);
-					}
-					else {
-						Team poppedTeam = tournamentTeamStack.pop();
-						addMatchToCodTeams(poppedTeam, teamToAssignMatchTo, tournamentOnDB);
-					}
-				}
-				else {					
-					tournamentTeamStack.pop();
+				int indexOfTeam = tournamentTeamStack.indexOf(teamOnDB);
+				if(indexOfTeam != -1) {
+					tournamentTeamStack.remove(indexOfTeam);
 				}
 				if(!teamCodTournamentList.isEmpty()) {
 					getCodTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamCodTournament.getTeamCodTournamentId()).delete();
@@ -471,8 +429,6 @@ public class TeamTournamentService {
 										.stream()
 										.anyMatch(tournamentTeam -> tournamentTeam.getTeamName().equals(team.getTeamName()));
 			if(isPartOfTournament) {
-				
-					
 				List<Team> newTournamentTeamList = tournamentTeamList
 						.stream()
 						.filter(tournamentTeam -> !tournamentTeam.getTeamName().equals(team.getTeamName()))
@@ -496,23 +452,11 @@ public class TeamTournamentService {
 							e.printStackTrace();
 						}
 					});
-				TeamFifaTournament teamFifaTournament = teamFifaTournamentsList.get(0);
-				List<Match> teamCodTournamentMatchesList = teamFifaTournament.getTeamTournamentMatches();
 				Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
-				if(!teamCodTournamentMatchesList.isEmpty()) {
-					Match teamMatchToArrange = teamCodTournamentMatchesList.get(0);
-					Team teamToAssignMatchTo = teamMatchToArrange.getMatchAwayTeam().getTeamId().equals(team.getTeamId()) ? teamMatchToArrange.getMatchLocalTeam() : teamMatchToArrange.getMatchAwayTeam();
-					removeMatchFromCodTeams(teamMatchToArrange, teamToAssignMatchTo, tournamentOnDB);
-					if(tournamentTeamStack.isEmpty()) {
-						tournamentTeamStack.push(teamToAssignMatchTo);
-					}
-					else {
-						Team poppedTeam = tournamentTeamStack.pop();
-						addMatchToFifaTeams(poppedTeam, teamToAssignMatchTo, tournamentOnDB);	
-					}
-				}
-				else {					
-					tournamentTeamStack.pop();
+				TeamFifaTournament teamFifaTournament = teamFifaTournamentsList.get(0);
+				int indexOfTeam = tournamentTeamStack.indexOf(teamOnDB);
+				if(indexOfTeam != -1) {
+					tournamentTeamStack.remove(indexOfTeam);
 				}
 				if(!teamFifaTournamentsList.isEmpty()) {
 					getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).document(teamFifaTournament.getTeamTournamentId()).delete();
@@ -523,7 +467,6 @@ public class TeamTournamentService {
 				batch.update(tournamentReference, "tournamentTeamBracketStack", tournamentTeamStack);
 				batch.commit().get();
 				return "Team removed from tournament";
-							 
 			}							
 		}
 		return "Not found.";
@@ -640,7 +583,7 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
-	public String addMatchToFifaTeams(Team localTeam, Team awayTeam, Tournament matchTournament) throws InterruptedException, ExecutionException {
+	public Match addMatchToFifaTeams(Team localTeam, Team awayTeam, Tournament matchTournament) throws InterruptedException, ExecutionException {
 		if(isActive(localTeam.getTeamId()) && isActive(awayTeam.getTeamId()) && isActiveTournament(matchTournament.getTournamentId())) {
 			Team localTeamOnDB = getTeamReference(localTeam.getTeamId()).get().get().toObject(Team.class);
 			Team awayTeamOnDB = getTeamReference(awayTeam.getTeamId()).get().get().toObject(Team.class);
@@ -697,12 +640,12 @@ public class TeamTournamentService {
 						}
 					});
 			
-			return "Match added successfully.";
+			return  match;
 		}
-		return "Not found.";
+		return null;
 	}
 	
-	public String addMatchToCodTeams(Team localTeam, Team awayTeam, Tournament matchTournament) throws InterruptedException, ExecutionException {
+	public Match addMatchToCodTeams(Team localTeam, Team awayTeam, Tournament matchTournament) throws InterruptedException, ExecutionException {
 		if(isActive(localTeam.getTeamId()) && isActive(awayTeam.getTeamId()) && isActiveTournament(matchTournament.getTournamentId())) {
 			Team localTeamOnDB = getTeamReference(localTeam.getTeamId()).get().get().toObject(Team.class);
 			Team awayTeamOnDB = getTeamReference(awayTeam.getTeamId()).get().get().toObject(Team.class);
@@ -761,9 +704,9 @@ public class TeamTournamentService {
 						}
 					});
 			
-			return "Match added Successfully.";
+			return match;
 		}
-		return "Not found.";
+		return null;
 	}
 	
 	public String addMatchToUserInTournament(User user, Tournament tournament, Match match) throws InterruptedException, ExecutionException {
@@ -790,11 +733,26 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
+//	public String disputeCodMatch(Match match, String tournamentId, Team team) throws InterruptedException, ExecutionException {
+//		if(isActiveTournament(tournamentId)) {
+//			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
+//			DocumentReference tournamentReference = getTournamentReference(tournamentId);
+//			match.setMatchStatus(MatchStatus.DISPUTED);
+//			match.setUploaded(false);
+//			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+//			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
+//			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
+//			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
+//			
+//		}
+//	}
+	
 	public String uploadCodMatchResult(Match match, String tournamentId, Team team) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournamentId)) {
 			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
 			DocumentReference tournamentReference = getTournamentReference(tournamentId);
 			match.setMatchStatus(MatchStatus.INACTIVE);
+			match.setUploaded(true);
 			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
 			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
 			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
@@ -821,6 +779,7 @@ public class TeamTournamentService {
 			DocumentReference tournamentReference = getTournamentReference(tournamentId);
 			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
 			match.setMatchStatus(MatchStatus.INACTIVE);
+			match.setUploaded(true);
 			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
 			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
 			addInvalidStatusToTeamFifaTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
@@ -922,6 +881,16 @@ public class TeamTournamentService {
 				});
 		}
 	}
+	
+//	public String addTreeToTournament(TreeNode treeNode, Tournament tournament) throws InterruptedException, ExecutionException {
+//		if(isActiveTournament(tournament.getTournamentId())) {
+//			Tournament tournamentOnDB = getTournamentReference(tournament.getTournamentId()).get().get().toObject(Tournament.class);
+//			tournamentOnDB.setTournamentBracketTree(treeNode);
+//			getTournamentReference(tournament.getTournamentId()).set(tournamentOnDB);
+//			return "Tree added successfully.";
+//		}
+//		return "Not found.";
+//	}
 	
 	public void addInvalidStatusToUserMatch(User user, String tournamentId, Match match) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = firestore.collection("users").document(user.getUserId());

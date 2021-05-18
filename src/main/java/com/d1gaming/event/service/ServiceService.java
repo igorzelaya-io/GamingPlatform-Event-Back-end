@@ -1,9 +1,10 @@
 package com.d1gaming.event.service;
 
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,7 +15,6 @@ import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 
 @Service
@@ -42,12 +42,12 @@ public class ServiceService {
 		//asynchronously retrieve all documents
 		ApiFuture<QuerySnapshot> future = getServicesCollection().get();
 		// future.get() blocks on response
-		List<QueryDocumentSnapshot> documents = future.get().getDocuments();
-		List<D1Service> servicesLs = new ArrayList<>();
-		documents.forEach(document -> {
-			servicesLs.add(document.toObject(D1Service.class));
-		});
-		return servicesLs;
+		return future.get()
+					.getDocuments()
+					.stream()
+					.map(document -> document.toObject(D1Service.class))
+					.sorted(Comparator.comparing(D1Service :: getServiceChargeAmount))
+					.collect(Collectors.toList());
 	}
 	
 	public String postService(D1Service service) {
