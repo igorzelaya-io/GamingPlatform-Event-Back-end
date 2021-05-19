@@ -1,6 +1,7 @@
 package com.d1gaming.event.tournament;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,7 @@ import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
 import com.d1gaming.library.node.BinaryTree;
 import com.d1gaming.library.node.TreeNode;
+import com.d1gaming.library.node.TreeRound;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.team.TeamTournamentStatus;
@@ -341,20 +343,23 @@ public class TournamentService {
 	}
 	
 	private void createNodesForTournament(Tournament tournament) throws InterruptedException, ExecutionException {
-		int numberOfMatches = 1;
-		int numberOfTeamsInRound = 1;
+		double numberOfMatches = 1;
 		int numberOfRounds = 1;
-		while(numberOfTeamsInRound > tournament.getTournamentNumberOfTeams() ) {
-			numberOfMatches += 2;
-			numberOfTeamsInRound = numberOfMatches * 2;
+		double numberOfTeamsInRound = 2;
+		while(numberOfTeamsInRound < tournament.getTournamentNumberOfTeams() ) {
+			numberOfTeamsInRound = 2;
+			numberOfMatches += 1;
+			numberOfTeamsInRound = Math.pow(numberOfTeamsInRound, numberOfMatches);
 			numberOfRounds++;
 		}
-		numberOfRounds++;
-		final int REMAINING_TEAMS_IN_BRACKET = numberOfTeamsInRound - tournament.getTournamentNumberOfTeams();
+		BinaryTree tournamentTree = new BinaryTree();
+		tournamentTree.setBinaryTreeNumberOfRounds(numberOfRounds);
+		List<TreeRound> tournamentRounds = new ArrayList<TreeRound>();
+		final int REMAINING_TEAMS_IN_BRACKET = (int) numberOfTeamsInRound - tournament.getTournamentNumberOfTeams();
 		final int ROUND_ONE_NUMBER_OF_TEAMS = tournament.getTournamentNumberOfTeams() - REMAINING_TEAMS_IN_BRACKET;
-		int roundTwoNumberOfTeams = ROUND_ONE_NUMBER_OF_TEAMS / 2 + REMAINING_TEAMS_IN_BRACKET;
-		
+		int roundTwoNumberOfTeams = (ROUND_ONE_NUMBER_OF_TEAMS / 2) + REMAINING_TEAMS_IN_BRACKET;
 		TreeNode[] roundOneNodes = new TreeNode[ROUND_ONE_NUMBER_OF_TEAMS / 2];
+		
 		for(int i = 0; i < ROUND_ONE_NUMBER_OF_TEAMS / 2 ; i++) {
 			Team localTeam = tournament.getTournamentTeamBracketStack().pop();
 			Team awayTeam = tournament.getTournamentTeamBracketStack().pop();
@@ -363,24 +368,28 @@ public class TournamentService {
 			roundOneNodes[i] = roundOneNode;
 		}
 		
-		int numberOfTeamsToPushInRoundTwo = (roundTwoNumberOfTeams - ROUND_ONE_NUMBER_OF_TEAMS) / 2;
+		TreeRound roundOne = new TreeRound();
+		roundOne.setTreeRoundLevel(0);
+		roundOne.setTreeRoundNodes(roundOneNodes);
+		
 		int indexOfRoundOneNode = 0;
 		int numberOfTeamsToPop = REMAINING_TEAMS_IN_BRACKET;
 		boolean isPushedTeamIntoRoundTwo = false;
-		boolean isGreaterNumberOfTeams = ROUND_ONE_NUMBER_OF_TEAMS < roundTwoNumberOfTeams ? true : false;
+		boolean isGreaterNumberOfTeamsInRoundTwo = ROUND_ONE_NUMBER_OF_TEAMS < roundTwoNumberOfTeams ? true : false;
+		int numberOfNodesToConnectToRoundOne = isGreaterNumberOfTeamsInRoundTwo ? (roundTwoNumberOfTeams - ROUND_ONE_NUMBER_OF_TEAMS) / 2 : null;
 		TreeNode[] roundTwoNodes = new TreeNode[roundTwoNumberOfTeams / 2];
 		for(int i = 0; i < roundTwoNumberOfTeams / 2 ; i++) {
-			if(isGreaterNumberOfTeams) {
-				if(!isPushedTeamIntoRoundTwo && numberOfTeamsToPushInRoundTwo != 0) {						
+			if(isGreaterNumberOfTeamsInRoundTwo) {
+				if(!isPushedTeamIntoRoundTwo && numberOfNodesToConnectToRoundOne != 0) {						
 					TreeNode roundOneNode = roundOneNodes[indexOfRoundOneNode];
 					TreeNode roundTwoNode = new TreeNode();
 					Team awayTeamInRoundTwo = tournament.getTournamentTeamBracketStack().pop();
 					Match roundTwoMatch = createMatchForTeams(awayTeamInRoundTwo, null, tournament);
 					roundTwoNode.setValue(roundTwoMatch);
 					roundTwoNode.setLeft(roundOneNode);
-					roundOneNodes[indexOfRoundOneNode].setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
 					roundTwoNodes[i] = roundTwoNode;
-					numberOfTeamsToPushInRoundTwo--;
+					numberOfNodesToConnectToRoundOne--;
 					isPushedTeamIntoRoundTwo = true;
 					indexOfRoundOneNode++;
 				}
@@ -395,7 +404,7 @@ public class TournamentService {
 				}
 				
 			}
-			else if(REMAINING_TEAMS_IN_BRACKET > 0){
+			else if(REMAINING_TEAMS_IN_BRACKET > 0 && !isGreaterNumberOfTeamsInRoundTwo){
 				if(!isPushedTeamIntoRoundTwo && numberOfTeamsToPop != 0) {
 					TreeNode roundOneNode = roundOneNodes[indexOfRoundOneNode];
 					TreeNode roundTwoNode = new TreeNode();
@@ -403,7 +412,7 @@ public class TournamentService {
 					Match roundTwoMatch = createMatchForTeams(awayTeamInRoundTwo, null, tournament);
 					roundTwoNode.setValue(roundTwoMatch);
 					roundTwoNode.setLeft(roundOneNode);
-					roundOneNode.setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
 					isPushedTeamIntoRoundTwo = true;
 					numberOfTeamsToPop--;
 					indexOfRoundOneNode++;
@@ -416,8 +425,8 @@ public class TournamentService {
 					roundTwoNode.setValue(match);
 					roundTwoNode.setLeft(roundOneLeftNode);
 					roundTwoNode.setRight(roundOneRightNode);
-					roundOneLeftNode.setRootNode(roundTwoNode);
-					roundOneRightNode.setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes()[indexOfRoundOneNode + 1].setRootNode(roundTwoNode);
 					indexOfRoundOneNode += 2;
 				}
 			}
@@ -429,25 +438,34 @@ public class TournamentService {
 				roundTwoNode.setValue(roundTwoMatch);
 				roundTwoNode.setLeft(roundOneLeftNode);
 				roundTwoNode.setRight(roundOneRightNode);
-				roundOneLeftNode.setRootNode(roundTwoNode);
-				roundOneRightNode.setRootNode(roundTwoNode);
+				roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
+				roundOne.getTreeRoundNodes()[indexOfRoundOneNode + 1].setRootNode(roundTwoNode);
 				indexOfRoundOneNode += 2;
 			}
 		}
+		tournamentRounds.add(roundOne);
+		
+		TreeRound roundTwo = new TreeRound();
+		roundTwo.setTreeRoundLevel(1);
+		roundTwo.setTreeRoundNodes(roundTwoNodes);
 		
 		int numberOfRoundsLeft = 0;
-		int numberOfTeamsInRoundTwoToDivide = roundTwoNumberOfTeams;
+		int numberOfTeamsInRoundTwoToDivide = roundTwoNumberOfTeams / 2;
 		while(numberOfTeamsInRoundTwoToDivide != 2) {
-			roundTwoNumberOfTeams = roundTwoNumberOfTeams / 2;
+			numberOfTeamsInRoundTwoToDivide = numberOfTeamsInRoundTwoToDivide / 2;
 			numberOfRoundsLeft++;
 		}
-		final int LAST_ROUND_DEPTH = 1;
-		numberOfRoundsLeft = numberOfRoundsLeft - LAST_ROUND_DEPTH;
+		
 		int roundTwoQuotient = 2;
+		int levelOfRoundX = 2;
+		
 		TreeNode[] roundBeforeFinalsNodes = new TreeNode[roundTwoNumberOfTeams / 2];
+		TreeRound roundX = new TreeRound();
 		for(int i = 0; i < numberOfRoundsLeft; i++) {
+			levelOfRoundX++;
 			int roundXNumberOfTeams = roundTwoNumberOfTeams / roundTwoQuotient;
 			TreeNode[] roundXNodes = new TreeNode[roundXNumberOfTeams / 2];
+			roundX.setTreeRoundLevel(levelOfRoundX);			
 			int indexOfRoundXNode = 0;
 			if(i == 0) {
 				for(int j = 0; j < roundXNumberOfTeams / 2; j++) {
@@ -458,18 +476,20 @@ public class TournamentService {
 					 roundXNode.setValue(roundXMatch);
 					 roundXNode.setLeft(roundTwoLeftNode);
 					 roundXNode.setRight(roundTwoRightNode);
-					 roundTwoLeftNode.setRootNode(roundXNode);
-					 roundTwoRightNode.setRootNode(roundXNode);
+					 roundTwo.getTreeRoundNodes()[indexOfRoundXNode].setRootNode(roundXNode);
+					 roundTwo.getTreeRoundNodes()[indexOfRoundXNode + 1].setRootNode(roundXNode);
 					 indexOfRoundXNode += 2;
 					 roundXNodes[i] = roundXNode;
 				}
 				roundBeforeFinalsNodes = roundXNodes;
+				roundX.setTreeRoundNodes(roundBeforeFinalsNodes);
 				roundXNodes = new TreeNode[roundBeforeFinalsNodes.length];
 				indexOfRoundXNode = 0;
 				roundTwoQuotient += 2;
+				tournamentRounds.add(roundTwo);
 				continue;
 			}
-			for(int j = 0; j < roundXNumberOfTeams; j++) {
+			for(int j = 0; j < roundXNumberOfTeams / 2; j++) {
 				TreeNode roundXNode = new TreeNode();
 				final Match roundXMatch = new Match();
 				TreeNode roundBeforeLeftNode = roundBeforeFinalsNodes[indexOfRoundXNode];
@@ -477,28 +497,34 @@ public class TournamentService {
 				roundXNode.setValue(roundXMatch);
 				roundXNode.setLeft(roundBeforeLeftNode);
 				roundXNode.setRight(roundBeforeRightNode);
-				roundBeforeLeftNode.setRootNode(roundXNode);
-				roundBeforeRightNode.setRootNode(roundXNode);
+				roundX.getTreeRoundNodes()[indexOfRoundXNode].setRootNode(roundXNode);
+				roundX.getTreeRoundNodes()[indexOfRoundXNode + 1].setRootNode(roundXNode);
 				indexOfRoundXNode += 2;
 				roundXNodes[i] = roundXNode;
 			}
+			tournamentRounds.add(roundX);
 			roundTwoQuotient += 2;
 			indexOfRoundXNode = 0;
 			roundBeforeFinalsNodes = roundXNodes;
+			roundX.setTreeRoundNodes(roundBeforeFinalsNodes);
 			roundXNodes = new TreeNode[roundBeforeFinalsNodes.length];
 		}
-		final Match finalMatch = new Match();
 		TreeNode roundBeforeFinalsLeftNode = roundBeforeFinalsNodes[0];
 		TreeNode roundBeforeFinalsRightNode = roundBeforeFinalsNodes[1];
 		TreeNode finalRoundNode = new TreeNode();
+		final Match finalMatch = new Match();
 		finalRoundNode.setValue(finalMatch);
 		finalRoundNode.setLeft(roundBeforeFinalsLeftNode);
 		finalRoundNode.setRight(roundBeforeFinalsRightNode);
-		roundBeforeFinalsLeftNode.setRootNode(finalRoundNode);
-		roundBeforeFinalsRightNode.setRootNode(finalRoundNode);
-		BinaryTree tournamentTree = new BinaryTree();
-		tournamentTree.setBinaryTreeNodes(finalRoundNode);
-		tournamentTree.setBinaryTreeNumberOfRounds(numberOfRounds);
+		roundX.getTreeRoundNodes()[0].setRootNode(finalRoundNode);
+		roundX.getTreeRoundNodes()[1].setRootNode(finalRoundNode);
+		tournamentRounds.add(roundX);
+		TreeRound finalRound = new TreeRound();
+		finalRound.setTreeRoundLevel(levelOfRoundX + 1);
+		TreeNode[] finalRoundNodes = { finalRoundNode };
+		finalRound.setTreeRoundNodes(finalRoundNodes);
+		tournamentRounds.add(finalRound);
+		tournamentTree.setBinaryTreeRounds(tournamentRounds);
 		tournament.setTournamentBracketTree(tournamentTree);
 		WriteResult tournamentReference = getTournamentReference(tournament.getTournamentId()).set(tournament).get();
 		System.out.println("Update Time: " + tournamentReference.getUpdateTime());
