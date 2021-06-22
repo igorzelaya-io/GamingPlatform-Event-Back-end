@@ -881,7 +881,6 @@ public class TeamTournamentService {
 				});
 		}
 	}
-	
 //	public String addTreeToTournament(TreeNode treeNode, Tournament tournament) throws InterruptedException, ExecutionException {
 //		if(isActiveTournament(tournament.getTournamentId())) {
 //			Tournament tournamentOnDB = getTournamentReference(tournament.getTournamentId()).get().get().toObject(Tournament.class);

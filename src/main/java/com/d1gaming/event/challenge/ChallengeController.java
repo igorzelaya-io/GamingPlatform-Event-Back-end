@@ -51,29 +51,29 @@ public class ChallengeController {
 		return new ResponseEntity<>(ls,HttpStatus.OK);
 	}
 	
-	@PostMapping(value = "challenges/save", params = "userId")
-	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<String> postOneVrsOneChallenge(@RequestParam(required = true)String userId, 
-														 @RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
-		String response = challengeServ.postOneVOneChallenge(userId, challenge);
-		if(response.equals("Could not create challenge.")) {
-			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
-		}
-		return new ResponseEntity<>(response, HttpStatus.OK);
-	
-	}
-	
-	@PostMapping(value = "/challenges/save")
-	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<Object> postChallenge(@RequestParam(required = true) Map<String,Object> userMap , 
-												@RequestParam(required = true) String userAdminId, 
-												@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
-		String response = challengeServ.postChallenge(userMap, userAdminId, challenge);
-		if(response.equals("Could not create challenge.")) {
-			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
-		}
-		return new ResponseEntity<>(response, HttpStatus.OK);
-	}
+//	@PostMapping(value = "challenges/save", params = "userId")
+//	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+//	public ResponseEntity<String> postOneVrsOneChallenge(@RequestParam(required = true)String userId, 
+//														 @RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
+//		String response = challengeServ.postOneVOneChallenge(userId, challenge);
+//		if(response.equals("Could not create challenge.")) {
+//			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
+//		}
+//		return new ResponseEntity<>(response, HttpStatus.OK);
+//	
+//	}
+//	
+//	@PostMapping(value = "/challenges/save")
+//	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+//	public ResponseEntity<Object> postChallenge(@RequestParam(required = true) Map<String,Object> userMap , 
+//												@RequestParam(required = true) String userAdminId, 
+//												@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
+//		String response = challengeServ.postChallenge(userMap, userAdminId, challenge);
+//		if(response.equals("Could not create challenge.")) {
+//			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
+//		}
+//		return new ResponseEntity<>(response, HttpStatus.OK);
+//	}
 
 	@DeleteMapping("/challenges")
 	@PreAuthorize("hasRole('CHALLENGE_ADMIN') or hasRole('ADMIN')")

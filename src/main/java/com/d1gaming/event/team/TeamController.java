@@ -115,9 +115,10 @@ public class TeamController {
 		if(response.equals("User not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
-		else {			
-			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+		else if(response.equals("User is already part of team.")){			
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.BAD_REQUEST);
 		}
+		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
 	@DeleteMapping(value = "/teams/delete")

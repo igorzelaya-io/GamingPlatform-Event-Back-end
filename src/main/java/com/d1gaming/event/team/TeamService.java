@@ -14,9 +14,12 @@ import com.d1gaming.event.image.EventImageService;
 import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
+import com.d1gaming.library.team.TeamCodTournament;
+import com.d1gaming.library.team.TeamFifaTournament;
 import com.d1gaming.library.team.TeamInviteRequest;
 import com.d1gaming.library.team.TeamInviteRequestStatus;
 import com.d1gaming.library.team.TeamStatus;
+import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserStatus;
 import com.google.api.core.ApiFuture;
@@ -210,18 +213,100 @@ public class TeamService {
 		//Evaluate if document exists in collection.
 		if(isActive(team.getTeamId())) {
 			DocumentReference reference = getTeamReference(team.getTeamId());
-			WriteBatch batch = firestore.batch();
 			User user = team.getTeamModerator();
+			CollectionReference teamCodTournaments = reference.collection("teamCodTournaments");
+			if(!teamCodTournaments.get().get().isEmpty()) {
+				List<Tournament> teamTournaments = teamCodTournaments.get().get()
+													.getDocuments()
+													.stream()
+													.map(document -> document.toObject(TeamCodTournament.class))
+													.map(teamCodTournament -> teamCodTournament.getTeamCodTournament())
+													.collect(Collectors.toList());
+													
+				deleteTeamFromAllTournaments(team.getTeamId(), teamTournaments);
+			}
+			CollectionReference teamFifaTournaments = reference.collection("teamFifaTournaments");
+			if(!teamFifaTournaments.get().get().isEmpty()) {
+				List<Tournament> teamTournaments = teamFifaTournaments.get().get()
+						.getDocuments()
+						.stream()
+						.map(document -> document.toObject(TeamFifaTournament.class))
+						.map(teamFifaTournament -> teamFifaTournament.getTeamTournament())
+						.collect(Collectors.toList());
+						
+				deleteTeamFromAllTournaments(team.getTeamId(), teamTournaments);
+			}
 			removeTeamAdminRoleFromUser(user);
+			deleteTeamFromAllUsers(team);
+			
 			//Change teamStatus to Inactive.
-			batch.update(reference, "teamStatus", TeamStatus.INACTIVE);
-			List<WriteResult> results = batch.commit().get();
-			results.forEach(result -> 
-				System.out.println("Update Time: " + result.getUpdateTime())
-			);
-			return "Team with ID: '" + team.getTeamId() + "' was deleted.";
+			reference.delete();
+			return new StringBuilder("Team with ID: '").append(team.getTeamId()).append("' was deleted.").toString();
 		}
 		return "Team not found.";
+	}
+	
+	private void deleteTeamFromAllUsers(Team team) {
+		List<User> teamUsers = team.getTeamUsers();
+		teamUsers.stream()
+				.forEach(user -> {
+					try {
+						deleteTeamFromUser(user.getUserId(), team.getTeamId());
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+	}
+	
+	private void deleteTeamFromUser(String userId, String teamId) throws InterruptedException, ExecutionException {
+		if(isActiveUser(userId)) {
+			DocumentReference userReference = getUserReference(userId);
+			DocumentReference teamReference = getTeamReference(teamId);
+			Team teamOnDB = teamReference.get().get().toObject(Team.class);
+			User userOnDB = userReference.get().get().toObject(User.class);
+			boolean isPartOfTeam = teamOnDB.getTeamUsers()
+											.stream()
+											.anyMatch(teamUser -> teamUser.getUserId().equals(userId));
+			if(isPartOfTeam) {
+				List<Team> userTeamNewList = userOnDB.getUserTeams()
+											.stream()
+											.filter(team -> !team.getTeamId().equals(teamId))
+											.collect(Collectors.toList());
+				WriteBatch batch = firestore.batch(); 
+				batch.update(userReference, "userTeams", userTeamNewList);
+				batch.commit().get();
+				
+			}				
+		}
+	}
+	private void deleteTeamFromAllTournaments(String teamId, List<Tournament> teamTournamentList) {
+		teamTournamentList.stream()
+					      .forEach(tournament -> {
+							try {
+								deleteTeamFromTournament(teamId, tournament.getTournamentId());
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+	}
+	
+	
+	
+	private void deleteTeamFromTournament(String teamId, String tournamentId) throws InterruptedException, ExecutionException {
+		DocumentReference tournamentReference = this.firestore.collection("tournaments").document(tournamentId);
+		Tournament tournamentOnDB = tournamentReference.get().get().toObject(Tournament.class);
+		boolean isPartOfTournament = tournamentOnDB.getTournamentTeams()
+												.stream()
+												.anyMatch(team -> team.getTeamId().equals(teamId));	
+		if(isPartOfTournament) {
+			List<Team> newTournamentTeamList = tournamentOnDB.getTournamentTeams()
+												.stream()
+												.filter(team -> !team.getTeamId().equals(teamId))
+												.collect(Collectors.toList());
+			WriteBatch batch = firestore.batch();
+			batch.update(tournamentReference, "tournamentTeams", newTournamentTeamList);
+			batch.commit().get();
+		}
 	}
 	
 	public String banTeamById(Team team) throws InterruptedException, ExecutionException {
@@ -326,18 +411,25 @@ public class TeamService {
 			request.setRequestStatus(TeamInviteRequestStatus.PENDING);
 			DocumentReference userReference = firestore.collection("users").document(request.getRequestedUser().getUserId());
 			DocumentReference teamReference = getTeamReference(request.getTeamRequest().getTeamId());
-			List<TeamInviteRequest> userRequests = userReference.get().get().toObject(User.class).getUserTeamRequests();
-			List<TeamInviteRequest> teamRequests = teamReference.get().get().toObject(Team.class).getTeamRequests();
-			teamRequests.add(request);
-			userRequests.add(request);
-			request.setRequestedTime(new Date(System.currentTimeMillis()));
-			WriteBatch batch = firestore.batch();
-			batch.update(userReference, "userTeamRequests", userRequests);
-			batch.update(teamReference, "teamRequests", teamRequests);
-			batch.commit().get()
-					.stream()
-					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-			return "Invite sent successfully.";
+			Team teamOnDB = teamReference.get().get().toObject(Team.class);
+			List<User> usersOnTeam = teamOnDB.getTeamUsers();
+			boolean isPartOfTeam = usersOnTeam
+										.stream()
+										.anyMatch(user -> user.getUserId().equals(request.getRequestedUser().getUserId()));
+			if(!isPartOfTeam) {				
+				List<TeamInviteRequest> userRequests = userReference.get().get().toObject(User.class).getUserTeamRequests();
+				List<TeamInviteRequest> teamRequests = teamReference.get().get().toObject(Team.class).getTeamRequests();
+				
+				teamRequests.add(request);
+				userRequests.add(request);
+				request.setRequestedTime(new Date(System.currentTimeMillis()));
+				WriteBatch batch = firestore.batch();
+				batch.update(userReference, "userTeamRequests", userRequests);
+				batch.update(teamReference, "teamRequests", teamRequests);
+				batch.commit().get();
+				return "Invite sent successfully.";
+			}
+			return "User is already part of team.";
 		}
 		return "Not found.";
 	}

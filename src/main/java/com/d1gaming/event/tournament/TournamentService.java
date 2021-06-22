@@ -1,7 +1,13 @@
 package com.d1gaming.event.tournament;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +26,9 @@ import com.d1gaming.library.node.TreeNode;
 import com.d1gaming.library.node.TreeRound;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
+import com.d1gaming.library.team.TeamCodTournament;
+import com.d1gaming.library.team.TeamFifaTournament;
+import com.d1gaming.library.team.TeamStatus;
 import com.d1gaming.library.team.TeamTournamentStatus;
 import com.d1gaming.library.tournament.Tournament;
 import com.d1gaming.library.tournament.TournamentStatus;
@@ -113,10 +122,17 @@ public class TournamentService {
 		return null;
 	}
 	
-	public Optional<Tournament> getTournamentById(String tournamentId) throws InterruptedException, ExecutionException {
+	public Optional<Tournament> getTournamentById(String tournamentId) throws InterruptedException, ExecutionException, ClassNotFoundException, IOException {
 		if(isActiveTournament(tournamentId)) {
 			DocumentReference reference = getTournamentsCollection().document(tournamentId);
 			DocumentSnapshot snapshot = reference.get().get();
+//			Tournament tournament = snapshot.toObject(Tournament.class);
+//			if(tournament.isStartedTournament() && tournament.getTournamentBase64BracketTree() != null) {
+//				String treeBase64String = tournament.getTournamentBase64BracketTree();
+//				BinaryTree tournamentTree = fromBase64StringToTree(treeBase64String);
+//				tournament.setTournamentBinaryTree(tournamentTree);
+//				return Optional.of(tournament);
+//			}
 			return Optional.of(snapshot.toObject(Tournament.class));
 		}
 		return null;
@@ -142,7 +158,6 @@ public class TournamentService {
 																.collect(Collectors.toList());
 		}
 		return new ArrayList<>();
-	
 	}
 	
 
@@ -211,7 +226,7 @@ public class TournamentService {
 				.collect(Collectors.toList());
 	}
 	
-	//Get a document By its ID.
+	//Get a document By its Name.
 	public Optional<Tournament> getTournamentByName(String tournamentName) throws InterruptedException, ExecutionException {
 		ApiFuture<QuerySnapshot> snapshot = getTournamentsCollection().whereEqualTo("tournamentName", tournamentName).get();
 		if(!snapshot.get().isEmpty()) {
@@ -234,7 +249,7 @@ public class TournamentService {
 	}
 	
 	
-	public String postTournament(User user, Tournament tournament) throws InterruptedException, ExecutionException {
+	public Tournament postTournament(User user, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId())) {
 			tournament.setTournamentStatus(TournamentStatus.ACTIVE);
 			tournament.setTournamentTeams(new ArrayList<>());
@@ -245,12 +260,13 @@ public class TournamentService {
 			addModeratorRoleToUser(user);
 			DocumentReference reference = getTournamentsCollection().add(tournament).get();
 			String documentId = reference.getId();
+			tournament.setTournamentId(documentId);
 			WriteBatch batch = firestore.batch();
 			batch.update(reference, "tournamentId", documentId);
 			batch.commit().get();
-			return "Tournament with ID: '" + documentId + "' was created succesfully";
+			return tournament;
 		}
-		return "Not found.";
+		return null;
 	}
 	
 	public String deleteTournament(Tournament tournament) throws InterruptedException, ExecutionException {
@@ -260,13 +276,72 @@ public class TournamentService {
 			removeModeratorRoleFromUser(user);
 			WriteBatch batch = firestore.batch();
 			batch.update(tournamentReference, "tournamentStatus", TournamentStatus.INACTIVE);
-			batch.commit().get().stream().forEach(result -> {
-				System.out.println("Update Time: " + result.getUpdateTime());
-			});
+			List<Team> tournamentTeams = tournament.getTournamentTeams();
+			if(tournament.getTournamentGame().equals("Fifa")) {
+				for(Team currTeam: tournamentTeams){
+					if(currTeam.getTeamStatus().equals(TeamStatus.ACTIVE) && firestore.collection("teams").document(currTeam.getTeamId()).get().get().exists()) {
+						deleteFifaTournamentFromTeams(currTeam, tournament);
+					}
+				}
+			}
+			else {
+				for(Team currTeam: tournamentTeams){
+					if(currTeam.getTeamStatus().equals(TeamStatus.ACTIVE) && firestore.collection("teams").document(currTeam.getTeamId()).get().get().exists()) {
+						deleteCodTournamentFromTeams(currTeam, tournament);
+					}
+				}
+			}
+			batch.commit().get();
 			return "Tournament with ID: '" + tournamentReference.getId() + "' was deleted.";
 			
 		}
 		return "Tournament not found.";
+	}
+	
+	private void deleteCodTournamentFromTeams(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
+		List<TeamCodTournament> teamCodTournamentsList = firestore.collection("teams").document(team.getTeamId()).collection("teamCodTournaments").get().get() 
+															.getDocuments()
+															.stream()
+															.map(document -> document.toObject(TeamCodTournament.class))
+															.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournament.getTournamentId()))
+															.collect(Collectors.toList());
+		TeamCodTournament teamCodTournament = teamCodTournamentsList.get(0);
+		firestore.collection("teams").document(team.getTeamId()).collection("teamCodTournaments").document(teamCodTournament.getTeamCodTournamentId()).update("teamTournamentStatus", TeamTournamentStatus.INACTIVE);
+		List<User> userList = team.getTeamUsers();
+		for(User currUser: userList) {
+			if(isActiveUser(currUser.getUserId())) {
+				deleteTournamentFromUser(currUser, tournament);
+			}
+		}
+	}
+	
+	private void deleteFifaTournamentFromTeams(Team team, Tournament tournament) throws InterruptedException, ExecutionException {
+		TeamFifaTournament teamTournament = firestore.collection("teams").document(team.getTeamId()).collection("teamFifaTournaments").get().get()
+															.getDocuments()
+															.stream()
+															.map(document -> document.toObject(TeamFifaTournament.class))
+															.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournament.getTournamentId()))
+															.collect(Collectors.toList()).get(0);
+		firestore.collection("teams").document(team.getTeamId()).collection("teamFifaTournaments").document(teamTournament.getTeamTournamentId()).update("teamTournamentStatus", TeamTournamentStatus.INACTIVE); 
+		List<User> userList = team.getTeamUsers();
+		for(User currUser: userList) {
+			if(isActiveUser(currUser.getUserId())) {
+				deleteTournamentFromUser(currUser, tournament);
+			}
+		}
+	}
+	
+//	Deletes UserTournament from UserTournament List.
+	private void deleteTournamentFromUser(User user, Tournament tournament) throws InterruptedException, ExecutionException {
+		DocumentReference userReference = firestore.collection("users").document(user.getUserId());
+		List<UserTournament> newUserTournamentsList = firestore.collection("users").document(user.getUserId()).get().get().toObject(User.class)
+															.getUserTournaments()
+															.stream()
+															.filter(userTournament -> !userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+															.collect(Collectors.toList());
+		WriteBatch batch = firestore.batch();
+		batch.update(userReference, "userTournaments", newUserTournamentsList);
+		batch.commit().get();
 	}
 	
 	public String updateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
@@ -312,28 +387,28 @@ public class TournamentService {
 	
 	private void removeModeratorRoleFromUser(User user) throws InterruptedException, ExecutionException {
 		DocumentReference reference = getUserReference(user.getUserId());
-		List<Role> userRoleLs = user.getUserRoles();
-		boolean hasRole = userRoleLs
+		if(reference.get().get().exists()) {			
+			List<Role> userRoleLs = user.getUserRoles();
+			boolean hasRole = userRoleLs
 					.stream()
 					.anyMatch(role -> role.getAuthority().equals("TOURNEY_ADMIN"));
-		if(hasRole) {
-			List<Role> userRoleLsWithoutModeratorRole = userRoleLs
-					.stream()
-					.filter(role -> !role.getAuthority().equals("TOURNEY_ADMIN"))
-					.collect(Collectors.toList());
-			WriteBatch batch = firestore.batch();
-			batch.update(reference, "userRoles", userRoleLsWithoutModeratorRole);
-			List<WriteResult> results = batch.commit().get();
-			results.forEach(result -> 
-				System.out.println("Update Time: " + result.getUpdateTime()));
+			if(hasRole) {
+				List<Role> userRoleLsWithoutModeratorRole = userRoleLs
+						.stream()
+						.filter(role -> !role.getAuthority().equals("TOURNEY_ADMIN"))
+						.collect(Collectors.toList());
+				WriteBatch batch = firestore.batch();
+				batch.update(reference, "userRoles", userRoleLsWithoutModeratorRole);
+				batch.commit().get();
+			}
 		}
 	}
 	
-	public Tournament activateTournament(Tournament tournament) throws InterruptedException, ExecutionException {
+	public Tournament activateTournament(Tournament tournament) throws InterruptedException, ExecutionException, IOException {
 		if(isActiveTournament(tournament.getTournamentId())) {			
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
-			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
-			createNodesForTournament(tournamentOnDB);
+//			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
+//			createNodesForTournament(tournamentOnDB);
 			WriteBatch batch = firestore.batch();
 			batch.update(tourneyReference, "startedTournament", true);
 			batch.commit().get();
@@ -342,7 +417,8 @@ public class TournamentService {
 		return null;
 	}
 	
-	private void createNodesForTournament(Tournament tournament) throws InterruptedException, ExecutionException {
+	private void createNodesForTournament(Tournament tournament) throws InterruptedException, ExecutionException, IOException {
+		BinaryTree tournamentTree = new BinaryTree();
 		double numberOfMatches = 1;
 		int numberOfRounds = 1;
 		double numberOfTeamsInRound = 2;
@@ -352,43 +428,40 @@ public class TournamentService {
 			numberOfTeamsInRound = Math.pow(numberOfTeamsInRound, numberOfMatches);
 			numberOfRounds++;
 		}
-		BinaryTree tournamentTree = new BinaryTree();
 		tournamentTree.setBinaryTreeNumberOfRounds(numberOfRounds);
 		List<TreeRound> tournamentRounds = new ArrayList<TreeRound>();
 		final int REMAINING_TEAMS_IN_BRACKET = (int) numberOfTeamsInRound - tournament.getTournamentNumberOfTeams();
 		final int ROUND_ONE_NUMBER_OF_TEAMS = tournament.getTournamentNumberOfTeams() - REMAINING_TEAMS_IN_BRACKET;
 		int roundTwoNumberOfTeams = (ROUND_ONE_NUMBER_OF_TEAMS / 2) + REMAINING_TEAMS_IN_BRACKET;
-		TreeNode[] roundOneNodes = new TreeNode[ROUND_ONE_NUMBER_OF_TEAMS / 2];
+		List<TreeNode> roundOneNodes = new ArrayList<>();
 		
 		for(int i = 0; i < ROUND_ONE_NUMBER_OF_TEAMS / 2 ; i++) {
 			Team localTeam = tournament.getTournamentTeamBracketStack().pop();
 			Team awayTeam = tournament.getTournamentTeamBracketStack().pop();
 			Match match = createMatchForTeams(awayTeam, localTeam, tournament);
 			TreeNode roundOneNode = new TreeNode(match);
-			roundOneNodes[i] = roundOneNode;
+			roundOneNodes.add(roundOneNode);
 		}
-		
 		TreeRound roundOne = new TreeRound();
 		roundOne.setTreeRoundLevel(0);
 		roundOne.setTreeRoundNodes(roundOneNodes);
-		
 		int indexOfRoundOneNode = 0;
 		int numberOfTeamsToPop = REMAINING_TEAMS_IN_BRACKET;
 		boolean isPushedTeamIntoRoundTwo = false;
 		boolean isGreaterNumberOfTeamsInRoundTwo = ROUND_ONE_NUMBER_OF_TEAMS < roundTwoNumberOfTeams ? true : false;
 		int numberOfNodesToConnectToRoundOne = isGreaterNumberOfTeamsInRoundTwo ? (roundTwoNumberOfTeams - ROUND_ONE_NUMBER_OF_TEAMS) / 2 : null;
-		TreeNode[] roundTwoNodes = new TreeNode[roundTwoNumberOfTeams / 2];
+		List<TreeNode> roundTwoNodes = new ArrayList<TreeNode>();
 		for(int i = 0; i < roundTwoNumberOfTeams / 2 ; i++) {
 			if(isGreaterNumberOfTeamsInRoundTwo) {
 				if(!isPushedTeamIntoRoundTwo && numberOfNodesToConnectToRoundOne != 0) {						
-					TreeNode roundOneNode = roundOneNodes[indexOfRoundOneNode];
+					TreeNode roundOneNode = roundOneNodes.get(indexOfRoundOneNode);
 					TreeNode roundTwoNode = new TreeNode();
 					Team awayTeamInRoundTwo = tournament.getTournamentTeamBracketStack().pop();
 					Match roundTwoMatch = createMatchForTeams(awayTeamInRoundTwo, null, tournament);
 					roundTwoNode.setValue(roundTwoMatch);
 					roundTwoNode.setLeft(roundOneNode);
-					roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
-					roundTwoNodes[i] = roundTwoNode;
+					roundOne.getTreeRoundNodes().get(indexOfRoundOneNode).setRootNode(roundTwoNode);
+					roundTwoNodes.add(roundTwoNode);
 					numberOfNodesToConnectToRoundOne--;
 					isPushedTeamIntoRoundTwo = true;
 					indexOfRoundOneNode++;
@@ -399,47 +472,47 @@ public class TournamentService {
 					Team awayTeam = tournament.getTournamentTeamBracketStack().pop();
 					Match match = createMatchForTeams(awayTeam, localTeam, tournament);
 					roundTwoNode.setValue(match);
-					roundTwoNodes[i] = roundTwoNode;
+					roundTwoNodes.add(roundTwoNode);
 					isPushedTeamIntoRoundTwo = false;
 				}
 				
 			}
 			else if(REMAINING_TEAMS_IN_BRACKET > 0 && !isGreaterNumberOfTeamsInRoundTwo){
 				if(!isPushedTeamIntoRoundTwo && numberOfTeamsToPop != 0) {
-					TreeNode roundOneNode = roundOneNodes[indexOfRoundOneNode];
+					TreeNode roundOneNode = roundOneNodes.get(indexOfRoundOneNode);
 					TreeNode roundTwoNode = new TreeNode();
 					Team awayTeamInRoundTwo = tournament.getTournamentTeamBracketStack().pop();
 					Match roundTwoMatch = createMatchForTeams(awayTeamInRoundTwo, null, tournament);
 					roundTwoNode.setValue(roundTwoMatch);
 					roundTwoNode.setLeft(roundOneNode);
-					roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes().get(indexOfRoundOneNode).setRootNode(roundTwoNode);
 					isPushedTeamIntoRoundTwo = true;
 					numberOfTeamsToPop--;
 					indexOfRoundOneNode++;
 				}
 				else {
-					TreeNode roundOneLeftNode = roundOneNodes[indexOfRoundOneNode];
-					TreeNode roundOneRightNode = roundOneNodes[indexOfRoundOneNode + 1];
+					TreeNode roundOneLeftNode = roundOneNodes.get(indexOfRoundOneNode);
+					TreeNode roundOneRightNode = roundOneNodes.get(indexOfRoundOneNode + 1);
 					TreeNode roundTwoNode = new TreeNode();
 					Match match = new Match();
 					roundTwoNode.setValue(match);
 					roundTwoNode.setLeft(roundOneLeftNode);
 					roundTwoNode.setRight(roundOneRightNode);
-					roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
-					roundOne.getTreeRoundNodes()[indexOfRoundOneNode + 1].setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes().get(indexOfRoundOneNode).setRootNode(roundTwoNode);
+					roundOne.getTreeRoundNodes().get(indexOfRoundOneNode + 1).setRootNode(roundTwoNode);
 					indexOfRoundOneNode += 2;
 				}
 			}
 			else {
-				TreeNode roundOneLeftNode = roundOneNodes[indexOfRoundOneNode];
-				TreeNode roundOneRightNode = roundOneNodes[indexOfRoundOneNode + 1];
+				TreeNode roundOneLeftNode = roundOneNodes.get(indexOfRoundOneNode);
+				TreeNode roundOneRightNode = roundOneNodes.get(indexOfRoundOneNode + 1);
 				TreeNode roundTwoNode = new TreeNode();
 				Match roundTwoMatch = new Match();
 				roundTwoNode.setValue(roundTwoMatch);
 				roundTwoNode.setLeft(roundOneLeftNode);
 				roundTwoNode.setRight(roundOneRightNode);
-				roundOne.getTreeRoundNodes()[indexOfRoundOneNode].setRootNode(roundTwoNode);
-				roundOne.getTreeRoundNodes()[indexOfRoundOneNode + 1].setRootNode(roundTwoNode);
+				roundOne.getTreeRoundNodes().get(indexOfRoundOneNode).setRootNode(roundTwoNode);
+				roundOne.getTreeRoundNodes().get(indexOfRoundOneNode + 1).setRootNode(roundTwoNode);
 				indexOfRoundOneNode += 2;
 			}
 		}
@@ -459,31 +532,31 @@ public class TournamentService {
 		int roundTwoQuotient = 2;
 		int levelOfRoundX = 2;
 		
-		TreeNode[] roundBeforeFinalsNodes = new TreeNode[roundTwoNumberOfTeams / 2];
+		List<TreeNode> roundBeforeFinalsNodes = new ArrayList<TreeNode>();
 		TreeRound roundX = new TreeRound();
 		for(int i = 0; i < numberOfRoundsLeft; i++) {
 			levelOfRoundX++;
 			int roundXNumberOfTeams = roundTwoNumberOfTeams / roundTwoQuotient;
-			TreeNode[] roundXNodes = new TreeNode[roundXNumberOfTeams / 2];
+			List<TreeNode> roundXNodes = new ArrayList<TreeNode>();
 			roundX.setTreeRoundLevel(levelOfRoundX);			
 			int indexOfRoundXNode = 0;
 			if(i == 0) {
 				for(int j = 0; j < roundXNumberOfTeams / 2; j++) {
-					 TreeNode roundXNode = new TreeNode();
-					 final Match roundXMatch = new Match();
-					 TreeNode roundTwoLeftNode = roundTwoNodes[indexOfRoundXNode];
-					 TreeNode roundTwoRightNode = roundTwoNodes[indexOfRoundXNode + 1];
-					 roundXNode.setValue(roundXMatch);
-					 roundXNode.setLeft(roundTwoLeftNode);
-					 roundXNode.setRight(roundTwoRightNode);
-					 roundTwo.getTreeRoundNodes()[indexOfRoundXNode].setRootNode(roundXNode);
-					 roundTwo.getTreeRoundNodes()[indexOfRoundXNode + 1].setRootNode(roundXNode);
-					 indexOfRoundXNode += 2;
-					 roundXNodes[i] = roundXNode;
+					TreeNode roundXNode = new TreeNode();
+					final Match roundXMatch = new Match();
+					TreeNode roundTwoLeftNode = roundTwoNodes.get(indexOfRoundXNode);
+					TreeNode roundTwoRightNode = roundTwoNodes.get(indexOfRoundXNode + 1);
+					roundXNode.setValue(roundXMatch);
+					roundXNode.setLeft(roundTwoLeftNode);
+					roundXNode.setRight(roundTwoRightNode);
+					roundTwo.getTreeRoundNodes().get(indexOfRoundXNode).setRootNode(roundXNode);
+					roundTwo.getTreeRoundNodes().get(indexOfRoundXNode + 1).setRootNode(roundXNode);
+					indexOfRoundXNode += 2;
+					roundXNodes.add(roundXNode);
 				}
 				roundBeforeFinalsNodes = roundXNodes;
 				roundX.setTreeRoundNodes(roundBeforeFinalsNodes);
-				roundXNodes = new TreeNode[roundBeforeFinalsNodes.length];
+				roundXNodes = new ArrayList<TreeNode>();
 				indexOfRoundXNode = 0;
 				roundTwoQuotient += 2;
 				tournamentRounds.add(roundTwo);
@@ -492,42 +565,60 @@ public class TournamentService {
 			for(int j = 0; j < roundXNumberOfTeams / 2; j++) {
 				TreeNode roundXNode = new TreeNode();
 				final Match roundXMatch = new Match();
-				TreeNode roundBeforeLeftNode = roundBeforeFinalsNodes[indexOfRoundXNode];
-				TreeNode roundBeforeRightNode = roundBeforeFinalsNodes[indexOfRoundXNode + 1];
+				TreeNode roundBeforeLeftNode = roundBeforeFinalsNodes.get(indexOfRoundXNode);
+				TreeNode roundBeforeRightNode = roundBeforeFinalsNodes.get(indexOfRoundXNode);
 				roundXNode.setValue(roundXMatch);
 				roundXNode.setLeft(roundBeforeLeftNode);
 				roundXNode.setRight(roundBeforeRightNode);
-				roundX.getTreeRoundNodes()[indexOfRoundXNode].setRootNode(roundXNode);
-				roundX.getTreeRoundNodes()[indexOfRoundXNode + 1].setRootNode(roundXNode);
+				roundX.getTreeRoundNodes().get(indexOfRoundXNode).setRootNode(roundXNode);
+				roundX.getTreeRoundNodes().get(indexOfRoundXNode + 1).setRootNode(roundXNode);
 				indexOfRoundXNode += 2;
-				roundXNodes[i] = roundXNode;
+				roundXNodes.add(roundXNode);
 			}
 			tournamentRounds.add(roundX);
 			roundTwoQuotient += 2;
 			indexOfRoundXNode = 0;
 			roundBeforeFinalsNodes = roundXNodes;
 			roundX.setTreeRoundNodes(roundBeforeFinalsNodes);
-			roundXNodes = new TreeNode[roundBeforeFinalsNodes.length];
+			roundXNodes = new ArrayList<TreeNode>();
 		}
-		TreeNode roundBeforeFinalsLeftNode = roundBeforeFinalsNodes[0];
-		TreeNode roundBeforeFinalsRightNode = roundBeforeFinalsNodes[1];
+		TreeNode roundBeforeFinalsLeftNode = roundBeforeFinalsNodes.get(0);
+		TreeNode roundBeforeFinalsRightNode = roundBeforeFinalsNodes.get(1);
 		TreeNode finalRoundNode = new TreeNode();
 		final Match finalMatch = new Match();
 		finalRoundNode.setValue(finalMatch);
 		finalRoundNode.setLeft(roundBeforeFinalsLeftNode);
 		finalRoundNode.setRight(roundBeforeFinalsRightNode);
-		roundX.getTreeRoundNodes()[0].setRootNode(finalRoundNode);
-		roundX.getTreeRoundNodes()[1].setRootNode(finalRoundNode);
+		roundX.getTreeRoundNodes().get(0).setRootNode(finalRoundNode);
+		roundX.getTreeRoundNodes().get(1).setRootNode(finalRoundNode);
 		tournamentRounds.add(roundX);
 		TreeRound finalRound = new TreeRound();
 		finalRound.setTreeRoundLevel(levelOfRoundX + 1);
-		TreeNode[] finalRoundNodes = { finalRoundNode };
+		List<TreeNode> finalRoundNodes = new ArrayList<TreeNode>();
+		finalRoundNodes.add(finalRoundNode);
 		finalRound.setTreeRoundNodes(finalRoundNodes);
 		tournamentRounds.add(finalRound);
 		tournamentTree.setBinaryTreeRounds(tournamentRounds);
-		tournament.setTournamentBracketTree(tournamentTree);
+		String base64TournamentTree = treeToBase64String(tournamentTree);
+		tournament.setTournamentBase64BracketTree(base64TournamentTree);
 		WriteResult tournamentReference = getTournamentReference(tournament.getTournamentId()).set(tournament).get();
 		System.out.println("Update Time: " + tournamentReference.getUpdateTime());
+	}
+	
+	private String treeToBase64String(Serializable serializableTree) throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		ObjectOutputStream writer = new ObjectOutputStream(out);
+		writer.writeObject(serializableTree);
+		writer.close();
+		return Base64.getEncoder().encodeToString(out.toByteArray());
+	}
+	
+	private BinaryTree fromBase64StringToTree(String base64TreeString) throws IOException, ClassNotFoundException {
+		byte[] data = Base64.getDecoder().decode(base64TreeString);
+		ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(data));
+		BinaryTree tree = ( BinaryTree ) in.readObject();
+		in.close();
+		return tree;
 	}
 	
 	private Match createMatchForTeams(Team awayTeam, Team localTeam, Tournament tournament) throws InterruptedException, ExecutionException {

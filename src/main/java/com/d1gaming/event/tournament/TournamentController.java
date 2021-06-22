@@ -1,5 +1,6 @@
 package com.d1gaming.event.tournament;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -19,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.match.Match;
-import com.d1gaming.library.request.MatchTournamentRequest;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -87,7 +87,7 @@ public class TournamentController {
 	}
 	
 	@GetMapping(value = "/tournaments/search", params="tournamentId")
-	public ResponseEntity<Tournament> getTournamentById(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException{
+	public ResponseEntity<Tournament> getTournamentById(@RequestParam(required = true)String tournamentId) throws InterruptedException, ExecutionException, ClassNotFoundException, IOException{
 		Optional<Tournament> tournament = tournamentService.getTournamentById(tournamentId);
 		if(tournament == null) {
 			return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
@@ -116,14 +116,13 @@ public class TournamentController {
 	
 	@PostMapping(value = "/tournaments/save" )
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<MessageResponse> saveTournament(@RequestBody(required = true)TournamentCreationRequest tournament) throws InterruptedException, ExecutionException{
-		String response = tournamentService.postTournament(tournament.getTournamentUserModerator(), tournament.getTournamentToBeCreated());	
-		if(response.equals("Not found.")) {
-			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
+	public ResponseEntity<Tournament> saveTournament(@RequestBody(required = true)TournamentCreationRequest tournament) throws InterruptedException, ExecutionException{
+		Tournament response = tournamentService.postTournament(tournament.getTournamentUserModerator(), tournament.getTournamentToBeCreated());	
+		if(response == null) {
+			return new ResponseEntity<Tournament>(response, HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
+		return new ResponseEntity<Tournament>(response, HttpStatus.OK);
 	}
-	
 	
 	@DeleteMapping(value = "/tournaments/delete")
 	@PreAuthorize("hasRole('TOURNEY_ADMIN') or hasRole('ADMIN')")
@@ -138,7 +137,7 @@ public class TournamentController {
 	@DeleteMapping(value = "/tournaments/delete/field")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<MessageResponse> deleteTournamentField(@RequestParam(required = true)String tournamentId,
-												   @RequestParam(required = true)String tournamentField) throws InterruptedException, ExecutionException{
+												   				 @RequestParam(required = true)String tournamentField) throws InterruptedException, ExecutionException{
 		String response = tournamentService.deleteTournamentField(tournamentId, tournamentField);
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
@@ -155,9 +154,9 @@ public class TournamentController {
 		}
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
-	
+	 
 	@PostMapping(value="/tournaments/start")
-	public ResponseEntity<Tournament> startTournament(@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
+	public ResponseEntity<Tournament> startTournament(@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException, IOException{
 		Tournament newTournament = tournamentService.activateTournament(tournament);
 		if(newTournament != null) {
 			return new ResponseEntity<Tournament>(newTournament, HttpStatus.OK);
