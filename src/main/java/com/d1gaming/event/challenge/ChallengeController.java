@@ -1,7 +1,6 @@
 package com.d1gaming.event.challenge;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.d1gaming.library.challenge.Challenge;
+import com.d1gaming.library.match.Match;
+import com.d1gaming.library.response.MessageResponse;
 
 
 @RestController
@@ -30,14 +31,11 @@ public class ChallengeController {
 	@Autowired
 	private ChallengeService challengeServ;
 	
-	@GetMapping(value = "challenges/search", params="challengeId")
+	@GetMapping(value = "/challenges/search", params="challengeId")
 	public ResponseEntity<Object> getChallengeById(@RequestParam(required = true)final String challengeId) throws InterruptedException, ExecutionException{
-		if(challengeId == null) {
-			return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST);
-		}
 		Challenge challenge = challengeServ.getChallengeById(challengeId);
 		if(challenge == null) {
-			return new ResponseEntity<>("Challenge not found.",HttpStatus.NOT_FOUND);
+			return new ResponseEntity<>(new MessageResponse("Challenge not found."),HttpStatus.NOT_FOUND);
 		}
 		return new ResponseEntity<>(challenge, HttpStatus.FOUND);
 	}
@@ -51,46 +49,88 @@ public class ChallengeController {
 		return new ResponseEntity<>(ls,HttpStatus.OK);
 	}
 	
-//	@PostMapping(value = "challenges/save", params = "userId")
-//	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-//	public ResponseEntity<String> postOneVrsOneChallenge(@RequestParam(required = true)String userId, 
-//														 @RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
-//		String response = challengeServ.postOneVOneChallenge(userId, challenge);
-//		if(response.equals("Could not create challenge.")) {
-//			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
-//		}
-//		return new ResponseEntity<>(response, HttpStatus.OK);
-//	
-//	}
-//	
-//	@PostMapping(value = "/challenges/save")
-//	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-//	public ResponseEntity<Object> postChallenge(@RequestParam(required = true) Map<String,Object> userMap , 
-//												@RequestParam(required = true) String userAdminId, 
-//												@RequestBody Challenge challenge) throws InterruptedException, ExecutionException{
-//		String response = challengeServ.postChallenge(userMap, userAdminId, challenge);
-//		if(response.equals("Could not create challenge.")) {
-//			return new ResponseEntity<>(response, HttpStatus.EXPECTATION_FAILED);
-//		}
-//		return new ResponseEntity<>(response, HttpStatus.OK);
-//	}
-
+	@GetMapping(value="/challenges/upcoming")
+	public ResponseEntity<List<Challenge>> getAllChallengesAfterOneWeek() throws InterruptedException, ExecutionException{
+		List<Challenge> challenges = challengeServ.getAllChallengesAfterOneWeek();
+		if(challenges.isEmpty()) {
+			return new ResponseEntity<List<Challenge>>(challenges, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Challenge>>(challenges, HttpStatus.OK);
+	}
+	
+	@GetMapping(value="/challenges/now")
+	public ResponseEntity<List<Challenge>> getAllChallengesBeforeOneWeek() throws InterruptedException, ExecutionException{
+		List<Challenge> challenges = challengeServ.getAllChallengesBeforeOneWeek();
+		if(challenges.isEmpty()) {
+			return new ResponseEntity<List<Challenge>>(challenges, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Challenge>>(challenges, HttpStatus.OK);
+	}
+	
+	@GetMapping(value="/challenges/matches/active")
+	public ResponseEntity<List<Match>> getAllActiveMatches(@RequestParam(required = true)String challengeId) throws InterruptedException, ExecutionException{
+		List<Match> matches = challengeServ.getAllChallengeMatches(challengeId);
+		if(matches.isEmpty()) {
+			return new ResponseEntity<List<Match>>(matches, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(matches, HttpStatus.OK);
+	}
+	
+	@GetMapping(value="/challenges/matches/inactive")
+	public ResponseEntity<List<Match>> getAllInactiveMatches(@RequestParam(required = true)String challengeId) throws InterruptedException, ExecutionException{
+		List<Match> matches = challengeServ.getAllChallengeInactiveMatches(challengeId);
+		if(matches.isEmpty()) {
+			return new ResponseEntity<List<Match>>(matches, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(matches, HttpStatus.OK);
+	}
+	
+	@GetMapping(value="/challenges/users/matches/active")
+	public ResponseEntity<List<Match>> getAllUserMatches(@RequestParam(required = true)String userId,
+					 									 @RequestParam(required = true)String challengeId) throws InterruptedException, ExecutionException{
+		List<Match> matches = challengeServ.getAllUserActiveMatches(userId, challengeId);
+		if(matches.isEmpty()) {
+			return new ResponseEntity<List<Match>>(matches, HttpStatus.NO_CONTENT);
+		}
+		return new ResponseEntity<List<Match>>(matches, HttpStatus.OK);
+	}
+	
+	@PostMapping(value="/challenges/add")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+	public ResponseEntity<Challenge> postChallenge(@RequestBody(required = true)Challenge challenge) throws InterruptedException, ExecutionException{
+		Challenge postedChallenge = challengeServ.postChallenge(challenge.getChallengeModerator(), challenge);
+		if(postedChallenge == null) {
+			return new ResponseEntity<Challenge>(postedChallenge, HttpStatus.EXPECTATION_FAILED);
+		}
+		return new ResponseEntity<Challenge>(postedChallenge, HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/challenges/start")
+	@PreAuthorize("hasRole('CHALLENGE_ADMIN') or hasRole('ADMIN')")
+	public ResponseEntity<Challenge> activateChallenge(@RequestParam(required = true)String challengeId) throws InterruptedException, ExecutionException{
+		Challenge response = challengeServ.activateChallenge(challengeId);
+		if(response == null) {
+			return new ResponseEntity<Challenge>(response, HttpStatus.NOT_FOUND);
+		}
+		return new ResponseEntity<Challenge>(response, HttpStatus.OK);
+	}
+	
 	@DeleteMapping("/challenges")
 	@PreAuthorize("hasRole('CHALLENGE_ADMIN') or hasRole('ADMIN')")
-	public ResponseEntity<Object> deleteChallengeById(@RequestParam(required = true)String challengeId, 
-													  @RequestParam(required = false)String challengeField) throws InterruptedException, ExecutionException{
+	public ResponseEntity<MessageResponse> deleteChallengeById(@RequestParam(required = true)String challengeId, 
+													  		   @RequestParam(required = false)String challengeField) throws InterruptedException, ExecutionException{
 		if(challengeField != null) {
 			String response = challengeServ.deleteChallengeField(challengeId, challengeField);
 			if(response.equals("Challenge not found.")) {
-				return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+				return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 			}
-			return new ResponseEntity<>(response, HttpStatus.OK);
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 		}
 		String response = challengeServ.deleteChallengeById(challengeId);
 		if(response.equals("Challenge not found.")) {
-			return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<>(response, HttpStatus.OK);
+		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
 	@PutMapping("/challenges/update")

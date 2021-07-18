@@ -407,8 +407,8 @@ public class TournamentService {
 	public Tournament activateTournament(Tournament tournament) throws InterruptedException, ExecutionException, IOException {
 		if(isActiveTournament(tournament.getTournamentId())) {			
 			DocumentReference tourneyReference = getTournamentReference(tournament.getTournamentId());
-//			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
-//			createNodesForTournament(tournamentOnDB);
+			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
+			createNodesForTournament(tournamentOnDB);
 			WriteBatch batch = firestore.batch();
 			batch.update(tourneyReference, "startedTournament", true);
 			batch.commit().get();

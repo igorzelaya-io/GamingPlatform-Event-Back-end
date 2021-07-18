@@ -11,21 +11,21 @@ spec:
     metadata:
       labels:
         app: d1-gaming-event-backend
-        version: 1.1.4
+        version: 1.1.7
     spec:
-      volumes: 
+      volumes:
         - name: google-cloud-key
-          secret: 
-            secretName: pubsub-key
+          secret:
+            secretName: compute-admin-key
       containers:
         - name: d1-gaming-event-backend-container
-          image: gcr.io/d1gamingapp/d1-gaming-event-backend:v1.1.4
-          volumeMounts: 
+          image: gcr.io/d1gamingapp/d1-gaming-event-backend:v1.1.7
+          volumeMounts:
             - name: google-cloud-key
               mountPath: /var/secrets/google
           env: 
             - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: /var/secrets/google/key.json 
+              value: /var/secrets/google/compute-admin-key.json
           resources:
             limits:
               cpu: 0.2

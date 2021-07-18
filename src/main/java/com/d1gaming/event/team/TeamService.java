@@ -152,29 +152,9 @@ public class TeamService {
 		team.setTeamId(teamId);
 		WriteBatch batch = firestore.batch();
 		batch.update(reference, "teamId", teamId);
-		batch.commit().get()
-					.stream()
-					.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
+		batch.commit().get();
 		addUserToTeam(teamLeader, team);
 		return Optional.of(team);
-	}
-	
-	//REPLICATE TO 'POSTTEAM()' METHOD.
-	public String postTeamWithImage(Team team, User teamLeader, ImageModel teamImage) throws InterruptedException, ExecutionException {
-		team.setTeamChallenges(new ArrayList<>());
-		team.setTeamStatus(TeamStatus.ACTIVE);
-		team.setTeamRequests(new ArrayList<>());
-		team.setTeamModerator(teamLeader);
-		addTeamAdminRoleToUser(teamLeader);
-		DocumentReference reference = getTeamsCollection().add(team).get();
-		String teamId = reference.getId();
-		WriteBatch batch = firestore.batch();
-		batch.update(reference, "teamId", teamId);
-		batch.commit().get()
-			.stream()
-			.forEach(result -> System.out.println("Update Time: " + result.getUpdateTime()));
-		eventImagesService.saveTeamImage(teamId, teamImage);
-		return "Team created.";
 	}
 	
 	public String addUserToTeam(User user, Team team ) throws InterruptedException, ExecutionException {
@@ -238,12 +218,20 @@ public class TeamService {
 			}
 			removeTeamAdminRoleFromUser(user);
 			deleteTeamFromAllUsers(team);
-			
-			//Change teamStatus to Inactive.
+			if(team.ishasImage()) {
+				deleteTeamImage(team.getTeamId());
+			}
 			reference.delete();
 			return new StringBuilder("Team with ID: '").append(team.getTeamId()).append("' was deleted.").toString();
 		}
 		return "Team not found.";
+	}
+	
+	public void deleteTeamImage(String teamId) throws InterruptedException, ExecutionException {
+		Optional<ImageModel> teamImageModel = eventImagesService.getTeamImage(teamId);
+		if(!teamImageModel.isEmpty()) {
+			firestore.collection("teamImages").document(teamImageModel.get().getImageModelDocumentId()).delete();
+		}
 	}
 	
 	private void deleteTeamFromAllUsers(Team team) {

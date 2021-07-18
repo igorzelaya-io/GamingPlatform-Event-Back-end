@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.d1gaming.event.image.EventImageService;
 import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
@@ -35,6 +36,9 @@ public class TeamController {
 
 	@Autowired
 	private TeamService teamService;
+	
+	@Autowired
+	private EventImageService imageService;
 	
 	@GetMapping(value = "/teams/search", params= "teamId")
 	public ResponseEntity<Team> getTeamById(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
@@ -73,26 +77,33 @@ public class TeamController {
 		return new ResponseEntity<List<User>>(usersInTeam, HttpStatus.OK);
 	}
 	
+	@GetMapping(value="/teams/image")
+	public ResponseEntity<ImageModel> getTeamImage(@RequestParam(required = true)String teamId) throws InterruptedException, ExecutionException{
+		Optional<ImageModel> teamImageModel = imageService.getTeamImage(teamId);
+		if(teamImageModel.isPresent()) {
+			return new ResponseEntity<ImageModel>(teamImageModel.get(), HttpStatus.OK);
+		}
+		return new ResponseEntity<ImageModel>(teamImageModel.get(), HttpStatus.NO_CONTENT);
+	}
+	
 	@PostMapping(value = "/teams/create")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<Object> createTeam(@RequestBody(required = true) TeamCreationRequest team) throws InterruptedException, ExecutionException, IOException{	
-		if(team.getTeamImage() != null) {
-			ImageModel teamImage = new ImageModel(team.getTeamImage().getOriginalFilename(), team.getTeamImage().getContentType(),
-													team.getTeamImage().getBytes());
-			if(teamService.getTeamByName(team.getTeamToRegister().getTeamName()) != null) {
-				return new ResponseEntity<Object>(new MessageResponse("Team name is already in use."), HttpStatus.BAD_REQUEST);
-			}
-			String response = teamService.postTeamWithImage(team.getTeamToRegister(), team.getTeamModerator() ,teamImage);
-			return new ResponseEntity<Object>(new MessageResponse(response), HttpStatus.OK);
-		}
+	public ResponseEntity<Object> createTeam(@RequestBody(required = true) TeamCreationRequest team) throws InterruptedException, ExecutionException{	
 		if(teamService.getTeamByName(team.getTeamToRegister().getTeamName()) != null){
 			return new ResponseEntity<Object>(new MessageResponse("Team name is already in use."), HttpStatus.BAD_REQUEST);
 		}
-		if(teamService.getTeamByEmail(team.getTeamToRegister().getTeamEmail()) != null) {
-			return new ResponseEntity<Object>(new MessageResponse("Team email is already in use."), HttpStatus.BAD_REQUEST);
-		}
 		Optional<Team> response = teamService.postTeam(team.getTeamToRegister(), team.getTeamModerator());			
 		return new ResponseEntity<Object>(response.get(), HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/teams/create/image")
+	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
+	public ResponseEntity<MessageResponse> addImageToTeam(@RequestBody(required = true)ImageModel teamImageModel) throws InterruptedException, ExecutionException, IOException{
+		String response = imageService.saveTeamImage(teamImageModel);
+		if(response.equals("Team not found.")) {
+			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
+		}
+		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
 	
 	@PostMapping(value = "/teams/users/add")
