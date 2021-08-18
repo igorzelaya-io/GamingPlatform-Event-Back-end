@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.d1gaming.library.match.Match;
 import com.d1gaming.library.request.MatchTournamentRequest;
 import com.d1gaming.library.request.TeamTournamentRequest;
-import com.d1gaming.library.request.TreeNodeRequest;
 import com.d1gaming.library.response.MessageResponse;
 import com.d1gaming.library.team.Team;
 import com.d1gaming.library.tournament.Tournament;
@@ -82,6 +81,7 @@ public class TeamTournamentController {
 		return new ResponseEntity<Tournament>(tournament.get(), HttpStatus.OK);
 	}
 	
+	//TOURNAMENT SERVICE
 	@GetMapping(value ="/teamTournaments/bestTeams")
 	public ResponseEntity<List<Team>> getTeamsWithMostWins(@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException{
 		List<Team> teamsWithMostWins = teamTournamentService.getAllTeamsWithHighestWins(tournament);
@@ -170,16 +170,7 @@ public class TeamTournamentController {
 		}
 		return new ResponseEntity<Match>(response, HttpStatus.OK);
 	}
-	
-//	@PostMapping(value="/teamTournaments/matches/bracket")
-//	public ResponseEntity<MessageResponse> addBracketToTournament(@RequestBody(required =true)TreeNodeRequest treeNodeRequest) throws InterruptedException, ExecutionException{
-//		String response = teamTournamentService.addTreeToTournament(treeNodeRequest.getTreeNodeTree(), treeNodeRequest.getTreeNodeTournament());
-//		if(response.equals("Not found.")) {
-//			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
-//		}
-//		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
-//	}
-	
+		
 	
 	@DeleteMapping(value = "/teamTournaments/cod/remove")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN') or hasRole('PLAYER')")

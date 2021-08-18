@@ -35,16 +35,16 @@ public class ChallengeController {
 	public ResponseEntity<Object> getChallengeById(@RequestParam(required = true)final String challengeId) throws InterruptedException, ExecutionException{
 		Challenge challenge = challengeServ.getChallengeById(challengeId);
 		if(challenge == null) {
-			return new ResponseEntity<>(new MessageResponse("Challenge not found."),HttpStatus.NOT_FOUND);
+			return new ResponseEntity<>(challenge ,HttpStatus.NOT_FOUND);
 		}
-		return new ResponseEntity<>(challenge, HttpStatus.FOUND);
+		return new ResponseEntity<>(challenge, HttpStatus.OK);
 	}
 	
 	@GetMapping(value = "/challenges")
 	public ResponseEntity<Object> getAllChallenges() throws InterruptedException, ExecutionException {
 		List<Challenge> ls = challengeServ.getAllChallenges();
 		if(ls.isEmpty()) {
-			return new ResponseEntity<>("No content",HttpStatus.NO_CONTENT);
+			return new ResponseEntity<>(new MessageResponse("No Content."), HttpStatus.NO_CONTENT);
 		}
 		return new ResponseEntity<>(ls,HttpStatus.OK);
 	}
@@ -97,18 +97,18 @@ public class ChallengeController {
 	
 	@PostMapping(value="/challenges/add")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
-	public ResponseEntity<Challenge> postChallenge(@RequestBody(required = true)Challenge challenge) throws InterruptedException, ExecutionException{
+	public ResponseEntity<Object> postChallenge(@RequestBody(required = true)Challenge challenge) throws InterruptedException, ExecutionException{
 		Challenge postedChallenge = challengeServ.postChallenge(challenge.getChallengeModerator(), challenge);
 		if(postedChallenge == null) {
-			return new ResponseEntity<Challenge>(postedChallenge, HttpStatus.EXPECTATION_FAILED);
+			return new ResponseEntity<Object>(postedChallenge, HttpStatus.BAD_REQUEST);
 		}
-		return new ResponseEntity<Challenge>(postedChallenge, HttpStatus.OK);
+		return new ResponseEntity<Object>(postedChallenge, HttpStatus.OK);
 	}
 	
 	@PostMapping(value = "/challenges/start")
 	@PreAuthorize("hasRole('CHALLENGE_ADMIN') or hasRole('ADMIN')")
-	public ResponseEntity<Challenge> activateChallenge(@RequestParam(required = true)String challengeId) throws InterruptedException, ExecutionException{
-		Challenge response = challengeServ.activateChallenge(challengeId);
+	public ResponseEntity<Challenge> activateChallenge(@RequestBody(required = true)Challenge challenge) throws InterruptedException, ExecutionException {
+		Challenge response = challengeServ.activateChallenge(challenge.getChallengeId());
 		if(response == null) {
 			return new ResponseEntity<Challenge>(response, HttpStatus.NOT_FOUND);
 		}

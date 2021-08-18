@@ -156,6 +156,7 @@ public class TournamentController {
 	}
 	 
 	@PostMapping(value="/tournaments/start")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('TOURNEY_ADMIN')")
 	public ResponseEntity<Tournament> startTournament(@RequestBody(required = true)Tournament tournament) throws InterruptedException, ExecutionException, IOException{
 		Tournament newTournament = tournamentService.activateTournament(tournament);
 		if(newTournament != null) {

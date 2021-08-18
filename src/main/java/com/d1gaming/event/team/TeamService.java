@@ -141,8 +141,28 @@ public class TeamService {
 		return new ArrayList<>();
 	}
 	
+	public List<Team> getFirstFifteenTeams() throws InterruptedException, ExecutionException{
+		CollectionReference teamCollection = getTeamsCollection();
+		Query firstPage = teamCollection.orderBy("teamTotalWs").limit(15);
+		return firstPage.get().get()
+						.getDocuments()
+						.stream()
+						.map(document -> document.toObject(Team.class))
+						.collect(Collectors.toList());
+	} 
+	
+	public List<Team> getNextPageBy(String lastUserId) throws InterruptedException, ExecutionException{
+		DocumentSnapshot lastUserIdSnapshot = getUserReference(lastUserId).get().get();
+		Query query = getTeamsCollection().orderBy("teamTotalWs").startAfter(lastUserIdSnapshot).limit(15);
+		
+		return query.get().get()
+							.getDocuments()
+							.stream()
+							.map(document -> document.toObject(Team.class))
+							.collect(Collectors.toList());
+	}
+	
 	public Optional<Team> postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
-		team.setTeamChallenges(new ArrayList<>());
 		team.setTeamRequests(new ArrayList<>());
 		team.setTeamStatus(TeamStatus.ACTIVE);
 		team.setTeamUsers(new ArrayList<>());

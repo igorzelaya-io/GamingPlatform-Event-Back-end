@@ -74,7 +74,8 @@ public class TournamentService {
 	private boolean isActiveTournament(String tournamentId) throws InterruptedException, ExecutionException {
 		DocumentReference tourneyReference = getTournamentReference(tournamentId);
 		DocumentSnapshot tourneySnapshot = tourneyReference.get().get();
-		if(tourneySnapshot.toObject(Tournament.class).getTournamentStatus().equals(TournamentStatus.ACTIVE) && tourneySnapshot.exists()) {
+		Tournament tournamentOnDB = tourneySnapshot.toObject(Tournament.class);
+		if((tourneySnapshot.toObject(Tournament.class).getTournamentStatus().equals(TournamentStatus.ACTIVE) || tournamentOnDB.getTournamentStatus().equals(TournamentStatus.IN_PROGRESS )) && tourneySnapshot.exists()) {
 			return true;
 		}
 		return false;
@@ -141,7 +142,7 @@ public class TournamentService {
 	//Get all documents from a collection.
 	public List<Tournament> getAllTournaments() throws InterruptedException, ExecutionException{
 		//asynchronously retrieve all documents
-		ApiFuture<QuerySnapshot> future = getTournamentsCollection().get();
+		ApiFuture<QuerySnapshot> future = getTournamentsCollection().whereEqualTo("tournamentStatus", "ACTIVE").get();
 		// future.get() blocks on response
 		return future.get().getDocuments()
 				.stream()

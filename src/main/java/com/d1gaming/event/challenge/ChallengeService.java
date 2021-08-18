@@ -11,12 +11,15 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.d1gaming.event.teamChallenge.TeamChallengeService;
 import com.d1gaming.library.challenge.Challenge;
 import com.d1gaming.library.challenge.ChallengeStatus;
 import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
 import com.d1gaming.library.role.Role;
-import com.d1gaming.library.team.TeamTournamentStatus;
+import com.d1gaming.library.team.Team;
+import com.d1gaming.library.team.TeamCodChallenge;
+import com.d1gaming.library.team.TeamStatus;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserChallenge;
 import com.d1gaming.library.user.UserStatus;
@@ -40,6 +43,9 @@ public class ChallengeService {
 	@Autowired
 	private Firestore firestore;
 	
+	@Autowired
+	private TeamChallengeService teamChallengeService;
+	
 	
 	//Get CollectionReference for Challenges collection.
 	private CollectionReference getChallengesCollection() {
@@ -53,7 +59,8 @@ public class ChallengeService {
 	private boolean isActive(String challengeId) throws InterruptedException, ExecutionException {
 		DocumentReference challengeReference = getChallengeReference(challengeId);
 		DocumentSnapshot challengeSnapshot = challengeReference.get().get();
-		if(challengeSnapshot.exists() && challengeSnapshot.toObject(Challenge.class).getChallengeStatus().equals(ChallengeStatus.ACTIVE)) {
+		Challenge challengeOnDB = challengeSnapshot.toObject(Challenge.class);
+		if(challengeSnapshot.exists() && (challengeOnDB.getChallengeStatus().equals(ChallengeStatus.ACTIVE) || challengeOnDB.getChallengeStatus().equals(ChallengeStatus.IN_PROGRESS))) {
 			return true;
 		}
 		return false;
@@ -68,6 +75,15 @@ public class ChallengeService {
 		return false; 
 	}
 	
+	private boolean isActiveTeam(String teamId) throws InterruptedException, ExecutionException{
+		DocumentReference teamReference = firestore.collection("teams").document(teamId);
+		DocumentSnapshot teamSnapshot = teamReference.get().get();
+		if(teamSnapshot.exists() && teamSnapshot.toObject(Team.class).getTeamStatus().equals(TeamStatus.ACTIVE)) {
+			return true;
+		}
+		return false;
+	}
+	
 	
 	//Get a challenge by its ID.
 	public Challenge getChallengeById(String challengeId) throws InterruptedException, ExecutionException {
@@ -79,18 +95,28 @@ public class ChallengeService {
 		return null;
 	}
 	
+	public List<Challenge> getAllChallengesById(List<String> challengesId) throws InterruptedException, ExecutionException{
+		List<Challenge> challengeList = new ArrayList<>();
+		for(String challengeId: challengesId) {
+			Challenge retrievedChallenge = getChallengeById(challengeId);
+			if(retrievedChallenge != null) {
+				challengeList.add(retrievedChallenge);
+			}
+		}
+		return challengeList;
+	}
 	
 	//Get all Challenges available in collection.
 	public List<Challenge> getAllChallenges() throws InterruptedException, ExecutionException{
 		//Retrieve all documents asynchronously.
-		ApiFuture<QuerySnapshot> snapshot = getChallengesCollection().get();
+		ApiFuture<QuerySnapshot> snapshot = getChallengesCollection().whereEqualTo("challengeStatus", "ACTIVE").get();
 		List<QueryDocumentSnapshot> documentList = snapshot.get().getDocuments();
 		//If there are no documents, return null.
-		List<Challenge> userList = new ArrayList<>();
+		List<Challenge> challengeList = new ArrayList<>();
 		documentList.forEach(document -> {
 			documentList.add(document);
 		});
-		return userList;
+		return challengeList;
 	}
 	
 	public List<Match> getAllChallengeMatches(String challengeId) throws InterruptedException, ExecutionException{
@@ -121,8 +147,7 @@ public class ChallengeService {
 			User userOnDB = firestore.collection("users").document(userId).get().get().toObject(User.class);
 			List<UserChallenge> userChallenges = userOnDB.getUserChallenges()
 																.stream()
-																.filter(userChallenge -> userChallenge.getUserChallengeStatus().equals(TeamTournamentStatus.ACTIVE))
-																.filter(userChallenge -> userChallenge.getUserChallenge().getChallengeId().equals(challengeId))
+																.filter(userChallenge -> userChallenge.getUserChallengeId().equals(challengeId))
 																.collect(Collectors.toList());
 			UserChallenge userChallenge = userChallenges.get(0);
 			return userChallenge.getUserChallengeMatches()
@@ -138,7 +163,7 @@ public class ChallengeService {
 	
 	public List<Challenge> getAllChallengesAfterOneWeek() throws InterruptedException, ExecutionException{
 		Date oneWeekFromNow = new Date(System.currentTimeMillis() + ONE_WEEK_IN_MILLISECONDS);
-		Query query = getChallengesCollection().whereGreaterThan("challengeDate", oneWeekFromNow);
+		Query query = getChallengesCollection().whereGreaterThan("challengeDate", oneWeekFromNow).whereEqualTo("challengeStatus", ChallengeStatus.ACTIVE);
 		return query.get().get()
 					.getDocuments()
 					.stream()
@@ -157,7 +182,7 @@ public class ChallengeService {
 	
 	public List<Challenge> getAllChallengesBeforeOneWeek() throws InterruptedException, ExecutionException{
 		Date oneWeekFromNow = new Date(System.currentTimeMillis() + ONE_WEEK_IN_MILLISECONDS);
-		Query query = getChallengesCollection().whereLessThanOrEqualTo("challengeDate", oneWeekFromNow);
+		Query query = getChallengesCollection().whereLessThanOrEqualTo("challengeDate", oneWeekFromNow).whereEqualTo("challengeStatus", ChallengeStatus.ACTIVE);
 		return query.get().get().getDocuments()
 						.stream()
 						.map(document -> document.toObject(Challenge.class))
@@ -174,17 +199,22 @@ public class ChallengeService {
 	
 	public Challenge postChallenge(User user, Challenge challenge) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId())) {
-			challenge.setChallengeStatus(ChallengeStatus.ACTIVE);
-			challenge.setStartedChallenge(false);
-			challenge.setChallengeMatches(new ArrayList<>());
-			addChallengeModeratorRoleToUser(user);
-			DocumentReference challengeReference = getChallengesCollection().add(challenge).get();
-			String documentId = challengeReference.getId();
-			challenge.setChallengeId(documentId);
-			WriteBatch batch = firestore.batch();
-			batch.update(challengeReference, "challengeId", documentId);
-			batch.commit().get();
-			return challenge;
+			DocumentReference userReference = firestore.collection("users").document(user.getUserId());
+			User userOnDB = userReference.get().get().toObject(User.class);
+			if(userOnDB.getUserTokens() >= challenge.getChallengeTokenFee()) {				
+				challenge.setChallengeStatus(ChallengeStatus.ACTIVE);
+				challenge.setStartedChallenge(false);
+				challenge.setNumberOfPlayedMatches(0);
+				addChallengeModeratorRoleToUser(user);
+				DocumentReference challengeReference = getChallengesCollection().add(challenge).get();
+				String documentId = challengeReference.getId();
+				challenge.setChallengeId(documentId);
+				WriteBatch batch = firestore.batch();
+				batch.update(challengeReference, "challengeId", documentId);
+				batch.update(userReference, "userTokens", FieldValue.increment(-challenge.getChallengeTokenFee()));
+				batch.commit().get();
+				return challenge;
+			}
 		}
 		return null;
 	}
@@ -208,16 +238,20 @@ public class ChallengeService {
 	
 	//Delete Challenge from collection by its ID.
 	public String deleteChallengeById(String challengeId) throws InterruptedException, ExecutionException {
-		DocumentReference reference = getChallengesCollection().document(challengeId);
-		DocumentSnapshot snapshot = getChallengesCollection().document(challengeId).get().get();
-		//Evaluate if challenge exists in collection.
-		if(!snapshot.exists()) {
-			return "Challenge not found.";
+		if(isActive(challengeId)) {
+			DocumentReference reference = getChallengesCollection().document(challengeId);			
+			DocumentSnapshot challengeSnapshot = reference.get().get();
+			Challenge challengeOnDB = challengeSnapshot.toObject(Challenge.class);
+			this.teamChallengeService.removeTeamFromChallenge(challengeOnDB.getChallengeHostTeam(), challengeOnDB);
+			if(challengeOnDB.getChallengeAwayTeam() != null) {
+				this.teamChallengeService.removeTeamFromChallenge(challengeOnDB.getChallengeAwayTeam(), challengeOnDB);
+			}
+			WriteBatch batch = firestore.batch();
+			batch.delete(reference);
+			batch.commit().get();
+			return "Challenge was deleted successfully.";
 		}
-		WriteBatch batch = firestore.batch();
-		batch.delete(reference);
-		batch.commit().get();
-		return "Challenge with id '" + snapshot.toObject(Challenge.class).getChallengeId() + "' was deleted.";
+		return "Not found.";
 	}
 	
 	//Delete challenge field
@@ -265,9 +299,96 @@ public class ChallengeService {
 		if(isActive(challengeId)) {
 			DocumentReference challengeReference = getChallengesCollection().document(challengeId);
 			Challenge challengeOnDB = challengeReference.get().get().toObject(Challenge.class);
-			challengeOnDB.setStartedChallenge(true);
-			challengeReference.set(challengeOnDB);
+			WriteBatch batch = firestore.batch();
+			batch.update(challengeReference, "startedChallenge", true);
+			batch.commit().get();			
+			createMatchesForTeams(challengeOnDB);
 			return challengeOnDB;
+		}
+		return null;
+	}
+	
+	public void createMatchesForTeams(Challenge challenge) throws InterruptedException, ExecutionException {
+		
+			DocumentReference challengeReference = getChallengesCollection().document(challenge.getChallengeId());
+			addMatchToTeams(challenge.getChallengeHostTeam(), challenge.getChallengeAwayTeam(), challenge);
+			WriteBatch batch = firestore.batch();
+			batch.update(challengeReference, "numberOfPlayedMatches", FieldValue.increment(1));
+			batch.commit().get();
+			
+	}
+	
+	private Match addMatchToTeams(Team localTeam, Team awayTeam, Challenge challenge) throws InterruptedException, ExecutionException {
+		if(isActiveTeam(localTeam.getTeamId()) && isActiveTeam(awayTeam.getTeamId()) && isActive(challenge.getChallengeId())) {
+			Team localTeamOnDB = firestore.collection("teams").document(localTeam.getTeamId()).get().get().toObject(Team.class);
+			Team awayTeamOnDB = firestore.collection("teams").document(awayTeam.getTeamId()).get().get().toObject(Team.class);		
+			List<TeamCodChallenge> localTeamCodChallengesList = firestore.collection("teams").document(localTeam.getTeamId()).collection("teamCodChallenges").get().get()
+																							.getDocuments()
+																							.stream()
+																							.map(document -> document.toObject(TeamCodChallenge.class))
+																							.filter(teamCodChallenge -> teamCodChallenge.getTeamChallengeId().equals(challenge.getChallengeId()))
+																							.collect(Collectors.toList());
+			List<TeamCodChallenge> awayTeamCodChallengesList = firestore.collection("teams").document(awayTeam.getTeamId()).collection("teamCodChallenges").get().get()
+																							.getDocuments()
+																							.stream()
+																							.map(document -> document.toObject(TeamCodChallenge.class))
+																							.filter(teamCodChallenge -> teamCodChallenge.getTeamChallengeId().equals(challenge.getChallengeId()))
+																							.collect(Collectors.toList());
+			TeamCodChallenge localTeamCodChallenge = localTeamCodChallengesList.get(0);
+			TeamCodChallenge awayTeamCodChallenge = awayTeamCodChallengesList.get(0);
+			DocumentReference localTeamCodChallengeReference = firestore.collection("teams").document(localTeam.getTeamId()).collection("teamCodChallenges").document(localTeamCodChallenge.getTeamCodChallengeId());
+			DocumentReference awayTeamCodChallengeReference = firestore.collection("teams").document(awayTeam.getTeamId()).collection("teamCodChallenges").document(awayTeamCodChallenge.getTeamCodChallengeId());
+			List<Match> localTeamCodChallengeMatchesList = localTeamCodChallenge.getTeamCodChallengeMatches();
+			List<Match> awayTeamCodChallengeMatchesList = awayTeamCodChallenge.getTeamCodChallengeMatches();
+			Match match = new Match(challenge.getChallengeId(), localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE);
+			DocumentReference addedDocument = firestore.collection("challenges").document(challenge.getChallengeId()).collection("challengeMatches").add(match).get();
+			String documentId = addedDocument.getId();
+			match.setMatchId(documentId);
+			localTeamCodChallengeMatchesList.add(match);
+			awayTeamCodChallengeMatchesList.add(match);
+			WriteBatch batch = firestore.batch();
+			batch.update(addedDocument, "matchId", documentId);
+			batch.update(localTeamCodChallengeReference, "teamCodChallengeMatches", localTeamCodChallengeMatchesList);
+			batch.update(awayTeamCodChallengeReference, "teamCodChallengeMatches", awayTeamCodChallengeMatchesList);
+			batch.commit().get();
+			List<User> localTeamUsers = localTeamOnDB.getTeamUsers();
+			List<User> awayTeamUsers = awayTeamOnDB.getTeamUsers();
+			localTeamUsers.forEach(teamUser -> {
+				try {
+					addMatchToUser(teamUser, challenge, match);
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();
+				}
+			});
+			
+			awayTeamUsers.forEach(teamUser -> {
+				try {
+					addMatchToUser(teamUser, challenge, match);
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();
+				}
+			});
+			return match;
+		}
+		return null;
+	}
+	
+	public String addMatchToUser(User user, Challenge challenge, Match match) throws InterruptedException, ExecutionException {
+		if(isActiveUser(user.getUserId())) {
+			DocumentReference userReference = firestore.collection("users").document(user.getUserId());
+			User userOnDB = userReference.get().get().toObject(User.class);
+			List<UserChallenge> userChallengeList = userOnDB
+														.getUserChallenges()
+														.stream()
+														.filter(userChallenge -> userChallenge.getUserChallengeId().equals(challenge.getChallengeId()))
+														.collect(Collectors.toList());
+			UserChallenge userChallenge = userChallengeList.get(0);
+			List<Match> userChallengeMatches = userChallenge.getUserChallengeMatches();
+			userChallengeMatches.add(match);
+			WriteBatch batch = firestore.batch();
+			batch.update(userReference, "userChallenges", userChallengeList);
+			batch.commit().get();
+			return "Match added";
 		}
 		return null;
 	}

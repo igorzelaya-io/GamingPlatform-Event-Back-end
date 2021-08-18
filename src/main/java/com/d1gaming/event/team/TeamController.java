@@ -86,6 +86,18 @@ public class TeamController {
 		return new ResponseEntity<ImageModel>(teamImageModel.get(), HttpStatus.NO_CONTENT);
 	}
 	
+	@GetMapping(value = "/teams/leaderboards")
+	public ResponseEntity<List<Team>> getFirstFifteenTeams() throws InterruptedException, ExecutionException{
+		List<Team> teams = this.teamService.getFirstFifteenTeams();
+		return new ResponseEntity<List<Team>>(teams, HttpStatus.OK);
+	}
+	
+	@GetMapping(value = "/teams/leaderboards/next")
+	public ResponseEntity<List<Team>> getNextPageBy(@RequestParam(required = true)String lastUserId) throws InterruptedException, ExecutionException{
+		List<Team> teams = this.teamService.getNextPageBy(lastUserId);
+		return new ResponseEntity<List<Team>>(teams, HttpStatus.OK);
+	}
+	
 	@PostMapping(value = "/teams/create")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<Object> createTeam(@RequestBody(required = true) TeamCreationRequest team) throws InterruptedException, ExecutionException{	
