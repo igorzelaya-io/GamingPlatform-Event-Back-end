@@ -10,6 +10,9 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.d1gaming.event.tournament.TournamentService;
+import com.d1gaming.library.match.DisputedMatch;
+import com.d1gaming.library.match.DisputedMatchStatus;
 import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
 import com.d1gaming.library.team.Team;
@@ -18,6 +21,7 @@ import com.d1gaming.library.team.TeamFifaTournament;
 import com.d1gaming.library.team.TeamStatus;
 import com.d1gaming.library.team.TeamTournamentStatus;
 import com.d1gaming.library.tournament.Tournament;
+import com.d1gaming.library.tournament.TournamentFormat;
 import com.d1gaming.library.tournament.TournamentStatus;
 import com.d1gaming.library.user.User;
 import com.d1gaming.library.user.UserStatus;
@@ -36,6 +40,9 @@ public class TeamTournamentService {
 
 	@Autowired
 	private Firestore firestore;
+	
+	@Autowired
+	private TournamentService tournamentService;
 	
 	private final String TEAM_COLLECTION = "teams";
 	
@@ -84,7 +91,9 @@ public class TeamTournamentService {
 		DocumentReference tournamentReference = firestore.collection("tournaments").document(tournamentId);
 		DocumentSnapshot tournamentSnapshot = tournamentReference.get().get();
 		Tournament tournamentOnDB = tournamentSnapshot.toObject(Tournament.class);
-		if(tournamentSnapshot.exists() && (tournamentOnDB.getTournamentStatus().equals(TournamentStatus.ACTIVE) || tournamentOnDB.getTournamentStatus().equals(TournamentStatus.IN_PROGRESS))) {
+		if(tournamentSnapshot.exists() && (tournamentOnDB.getTournamentStatus().equals(TournamentStatus.ACTIVE) 
+											|| tournamentOnDB.getTournamentStatus().equals(TournamentStatus.IN_PROGRESS)
+											|| tournamentOnDB.getTournamentStatus().equals(TournamentStatus.TERMINATED))) {
 			return true;
 		}
 		return false;
@@ -116,12 +125,14 @@ public class TeamTournamentService {
 	public List<Tournament> getAllCodTournamentsFromTeam(String teamId) throws InterruptedException, ExecutionException{
 		if(isActive(teamId)) {
 			QuerySnapshot queryForDocuments = getCodTournamentsSubcollectionFromTeam(teamId).get().get();
-			return queryForDocuments.getDocuments()
-							.stream()
-							.map(document -> document.toObject(TeamCodTournament.class))
-							.map(teamCodTournament -> teamCodTournament.getTeamCodTournament())
-							//.filter(tournament -> isActiveTournament());
-							.collect(Collectors.toList());
+			return tournamentService.getAllTournamentsById(
+															queryForDocuments.getDocuments()
+															.stream()
+															.map(document -> document.toObject(TeamCodTournament.class))
+															.map(teamCodTournament -> teamCodTournament.getTeamCodTournamentId())
+															.collect(Collectors.toList())
+														);
+							
 		}
 		return new ArrayList<>();
 	}
@@ -129,12 +140,13 @@ public class TeamTournamentService {
 	public List<Tournament> getAllFifaTournamentsFromTeam(String teamId) throws InterruptedException, ExecutionException {
 		if(isActive(teamId)) {
 			QuerySnapshot queryForTournaments = getFifaTournamentsSubcollectionFromTeam(teamId).get().get();
-			return queryForTournaments.getDocuments()
-					.stream()
-					.map(document -> document.toObject(TeamFifaTournament.class))
-					.map(teamFifaTournament -> teamFifaTournament.getTeamTournament())
-					.collect(Collectors.toList());
-		
+			return this.tournamentService.getAllTournamentsById(
+															queryForTournaments.getDocuments()
+															.stream()
+															.map(document -> document.toObject(TeamFifaTournament.class))
+															.map(teamFifaTournament -> teamFifaTournament.getTeamTournamentId())
+															.collect(Collectors.toList())
+														);
 		}
 		return new ArrayList<>();
 	}
@@ -145,7 +157,7 @@ public class TeamTournamentService {
 															.getDocuments()
 															.stream()
 															.map(document -> document.toObject(TeamFifaTournament.class))
-															.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournamentId))
+															.filter(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(tournamentId))
 															.collect(Collectors.toList()).get(0)
 															.getTeamTournamentMatches()
 															.stream()
@@ -161,7 +173,7 @@ public class TeamTournamentService {
 															.getDocuments()
 															.stream()
 															.map(document -> document.toObject(TeamCodTournament.class))
-															.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournamentId))
+															.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(tournamentId))
 															.collect(Collectors.toList())
 															.get(0)
 															.getTeamCodTournamentMatches()
@@ -179,7 +191,7 @@ public class TeamTournamentService {
 															.getDocuments()
 															.stream()
 															.map(document -> document.toObject(TeamFifaTournament.class))
-															.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournamentId))
+															.filter(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(tournamentId))
 															.collect(Collectors.toList()).get(0)
 															.getTeamTournamentMatches()
 															.stream()
@@ -195,7 +207,7 @@ public class TeamTournamentService {
 					.getDocuments()
 					.stream()
 					.map(document -> document.toObject(TeamCodTournament.class))
-					.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournamentId))
+					.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(tournamentId))
 					.collect(Collectors.toList())
 					.get(0)
 					.getTeamCodTournamentMatches()
@@ -221,9 +233,11 @@ public class TeamTournamentService {
 																	.getDocuments()
 																	.stream()
 																	.map(document -> document.toObject(TeamCodTournament.class))
-																	.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournamentId))
+																	.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(tournamentId))
 																	.collect(Collectors.toList());
-			return Optional.of(teamCodTournaments.get(0).getTeamCodTournament());
+			return Optional.of(this.tournamentService.getTournamentById(
+																teamCodTournaments.get(0).getTeamTournamentId()
+																		).get());
 		}
 		return null; 
 	}
@@ -234,9 +248,11 @@ public class TeamTournamentService {
 																	.getDocuments()
 																	.stream()
 																	.map(document -> document.toObject(TeamFifaTournament.class))
-																	.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournamentId))
+																	.filter(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(tournamentId))
 																	.collect(Collectors.toList());
-			return Optional.of(teamFifaTournaments.get(0).getTeamTournament());
+			return Optional.of(
+								this.tournamentService.getTournamentById(teamFifaTournaments.get(0).getTeamTournamentId()).get()
+							);
 		}
 		return null;
 	}
@@ -249,21 +265,27 @@ public class TeamTournamentService {
 			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
 			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);			
 			List<Match> teamMatches = new ArrayList<>();
-			TeamFifaTournament teamTournamentSubdocument = new TeamFifaTournament(tournamentOnDB, teamMatches, 0, 0, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
+			TeamFifaTournament teamTournamentSubdocument = new TeamFifaTournament(tournamentOnDB.getTournamentId(), teamMatches, 0, 0, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
 			
 			boolean isAlreadyPartOfTournament = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 																	.getDocuments()
 																	.stream()
 																	.map(document -> document.toObject(TeamFifaTournament.class))
-																	.anyMatch(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournament.getTournamentId()));
+																	.anyMatch(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(tournament.getTournamentId()));
 			if(!isAlreadyPartOfTournament) {				
-				int teamModeratorTokens = teamModeratorReference.get().get().toObject(User.class).getUserTokens();
+				User userTeamModerator = teamModeratorReference.get().get().toObject(User.class);
+				boolean isTourneyAdmin = userTeamModerator.getUserId().equals(tournament.getTournamentModeratorId());
+				int teamModeratorTokens = userTeamModerator.getUserTokens();
 				int currentNumberOfTeamsInTournament = tournamentOnDB.getTournamentNumberOfTeams();
-				if(tournament.getTournamentLimitNumberOfTeams() > currentNumberOfTeamsInTournament && teamModeratorTokens >= tournament.getTournamentEntryFee()) {
+				if((tournament.getTournamentLimitNumberOfTeams() > currentNumberOfTeamsInTournament && teamModeratorTokens >= tournament.getTournamentEntryFee()) || isTourneyAdmin) {
 					WriteBatch batch = firestore.batch();
 					DocumentReference addedDocumentToTeamFifaTournamentsSubcollection = getFifaTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamTournamentSubdocument).get();
 					String documentId = addedDocumentToTeamFifaTournamentsSubcollection.getId();
 					List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
+					if(tournamentOnDB.getTournamentFormat().equals(TournamentFormat.PvP)) {
+						List<Team> tournamentLeaderboardForLeague = tournamentOnDB.getTournamentLeaderboardForLeague();
+						tournamentLeaderboardForLeague.add(teamOnDB);
+					}
 					tournamentTeamList.add(teamOnDB);
 					List<User> teamUsers = team.getTeamUsers();
 					teamUsers
@@ -295,7 +317,9 @@ public class TeamTournamentService {
 					}
 					batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
 					batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
-					batch.update(teamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
+					if(!isTourneyAdmin) {						
+						batch.update(teamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
+					}
 					batch.commit().get();
 					return "Team added successfully to tournament.";
 				
@@ -314,17 +338,19 @@ public class TeamTournamentService {
 			Tournament tournamentOnDB = tourneyReference.get().get().toObject(Tournament.class);
 			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
 			List<Match> teamMatches = new ArrayList<>();
-			TeamCodTournament teamCodTournamentSubdocument = new TeamCodTournament(tournamentOnDB,teamMatches, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
+			TeamCodTournament teamCodTournamentSubdocument = new TeamCodTournament(tournamentOnDB.getTournamentId(), 0 , teamMatches, 0, 0, 0, 0, 0, TeamTournamentStatus.ACTIVE);
 			
 			boolean isAlreadyPartOfTournament = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).get().get()
 																	.getDocuments()
 																	.stream()
 																	.map(document -> document.toObject(TeamCodTournament.class))
-																	.anyMatch(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentName().equals(tournament.getTournamentName())); 
+																	.anyMatch(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(tournament.getTournamentName())); 
 			if(!isAlreadyPartOfTournament) {
-				int teamModeratorTokens = userTeamModeratorReference.get().get().toObject(User.class).getUserTokens();
+				User userTeamModerator = userTeamModeratorReference.get().get().toObject(User.class);
+				boolean isTourneyAdmin = userTeamModerator.getUserId().equals(tournament.getTournamentModeratorId());
+				int teamModeratorTokens = userTeamModerator.getUserTokens();
 				int tournamentCurrentNumberOfTeams = tournamentOnDB.getTournamentNumberOfTeams();
-				if(teamModeratorTokens >= tournament.getTournamentEntryFee() && tournamentCurrentNumberOfTeams < tournament.getTournamentLimitNumberOfTeams()) {
+				if((teamModeratorTokens >= tournament.getTournamentEntryFee() && tournamentCurrentNumberOfTeams < tournament.getTournamentLimitNumberOfTeams()) || isTourneyAdmin) {
 					DocumentReference addedDocumentToTeamCodTournaments = getCodTournamentsSubcollectionFromTeam(team.getTeamId()).add(teamCodTournamentSubdocument).get();
 					String documentId = addedDocumentToTeamCodTournaments.getId();
 					List<Team> tournamentTeamList = tournamentOnDB.getTournamentTeams();
@@ -341,6 +367,11 @@ public class TeamTournamentService {
 						});
 					
 					WriteBatch batch = firestore.batch();
+					if(tournamentOnDB.getTournamentFormat().equals(TournamentFormat.PvP)) {
+						List<Team> tournamentLeaderboardForLeague = tournamentOnDB.getTournamentLeaderboardForLeague();
+						tournamentLeaderboardForLeague.add(teamOnDB);
+						batch.update(tourneyReference, "tournamentLeaderboardForLeague", tournamentLeaderboardForLeague);
+					}
 					Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 					boolean isWrittenBatch = false;
 					if(tournamentTeamStack.isEmpty()) {
@@ -359,7 +390,9 @@ public class TeamTournamentService {
 						batch.update(addedDocumentToTeamCodTournaments, "teamCodTournamentId", documentId);
 						batch.update(tourneyReference, "tournamentTeamBracketStack", tournamentTeamStack);
 					}
-					batch.update(userTeamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
+					if(!isTourneyAdmin) {
+						batch.update(userTeamModeratorReference, "userTokens", FieldValue.increment(-tournament.getTournamentEntryFee()));
+					}
 					batch.update(tourneyReference, "tournamentNumberOfTeams", FieldValue.increment(1));
 					batch.update(tourneyReference, "tournamentTeams", tournamentTeamList);
 					batch.commit().get();
@@ -376,7 +409,7 @@ public class TeamTournamentService {
 	public String addTournamentToUser(User user, Team team, Tournament tournament) throws InterruptedException, ExecutionException {
 		if(isActiveUser(user.getUserId()) && isActive(team.getTeamId()) && isActiveTournament(tournament.getTournamentId())) {
 			List<Match> userTournamentMatches = new ArrayList<>();
-			UserTournament userTournament = new UserTournament(tournament, team, 0, 0, userTournamentMatches, TeamTournamentStatus.ACTIVE);
+			UserTournament userTournament = new UserTournament(tournament.getTournamentId(), team, 0, 0, userTournamentMatches, TeamTournamentStatus.ACTIVE);
 			DocumentReference userReference = firestore.collection("users").document(user.getUserId());
 			User userOnDB = userReference.get().get().toObject(User.class);
 			List<UserTournament> userTournamentList = userOnDB.getUserTournaments();
@@ -405,7 +438,7 @@ public class TeamTournamentService {
 														.getDocuments()
 														.stream()
 														.map(document -> document.toObject(TeamCodTournament.class))
-														.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournament.getTournamentId()))
+														.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(tournament.getTournamentId()))
 														.collect(Collectors.toList()); 
 				
 				List<Team> newTournamentTeamList = tournamentTeamList
@@ -478,7 +511,7 @@ public class TeamTournamentService {
 														.getDocuments()
 														.stream()
 														.map(document -> document.toObject(TeamFifaTournament.class))
-														.filter(teamTournament -> teamTournament.getTeamTournament().getTournamentName().equals(tournament.getTournamentName()))
+														.filter(teamTournament -> teamTournament.getTeamTournamentId().equals(tournament.getTournamentId()))
 														.collect(Collectors.toList());
 				WriteBatch batch = firestore.batch();
 				List<User> teamUsers = teamOnDB.getTeamUsers();
@@ -530,7 +563,7 @@ public class TeamTournamentService {
 																		.getDocuments()
 																		.stream()
 																		.map(document -> document.toObject(TeamCodTournament.class))
-																		.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(tournament.getTournamentId()))
 																		.collect(Collectors.toList());
 		if(!teamCodTournamentsWithTournament.isEmpty()) {			
 			TeamCodTournament teamCodTournament = teamCodTournamentsWithTournament.get(0);
@@ -561,7 +594,7 @@ public class TeamTournamentService {
 																		.getDocuments()
 																		.stream()
 																		.map(document -> document.toObject(TeamFifaTournament.class))
-																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(tournament.getTournamentId()))
 																		.collect(Collectors.toList());
 		if(!teamFifaTournamentWithTournament.isEmpty()) {
 			TeamFifaTournament teamFifaTournament = teamFifaTournamentWithTournament.get(0);
@@ -592,7 +625,7 @@ public class TeamTournamentService {
 		List<UserTournament> userTournamentList = user.getUserTournaments();
 		List<UserTournament> userTournamentsWithTournament = user.getUserTournaments()
 																.stream()
-																.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+																.filter(userTournament -> userTournament.getUserTournamentId().equals(tournament.getTournamentId()))
 																.collect(Collectors.toList());
 		if(!userTournamentsWithTournament.isEmpty()) {
 			UserTournament userTournament = userTournamentsWithTournament.get(0);
@@ -618,12 +651,12 @@ public class TeamTournamentService {
 			List<UserTournament> userTournaments = userOnDB.getUserTournaments();
 			List<UserTournament> userTournamentsListWithTournament = userTournaments
 																		.stream()
-																		.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.filter(userTournament -> userTournament.getUserTournamentId().equals(tournament.getTournamentId()))
 																		.collect(Collectors.toList());
 			if(!userTournamentsListWithTournament.isEmpty()) {				
 				List<UserTournament> userTournamentsWithoutTournament = userTournaments
 																		.stream()
-																		.filter(userTournament -> !userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+																		.filter(userTournament -> !userTournament.getUserTournamentId().equals(tournament.getTournamentId()))
 																		.collect(Collectors.toList());
 						
 				WriteBatch batch = firestore.batch();
@@ -643,13 +676,13 @@ public class TeamTournamentService {
 																		.getDocuments()
 																		.stream()
 																		.map(document -> document.toObject(TeamFifaTournament.class))
-																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(matchTournament.getTournamentId()))
+																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(matchTournament.getTournamentId()))
 																		.collect(Collectors.toList());
 			List<TeamFifaTournament> awayTeamFifaTournamentList = getFifaTournamentsSubcollectionFromTeam(awayTeam.getTeamId()).get().get()
 																		.getDocuments()
 																		.stream()
 																		.map(document -> document.toObject(TeamFifaTournament.class))
-																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournament().getTournamentId().equals(matchTournament.getTournamentId()))
+																		.filter(teamFifaTournament -> teamFifaTournament.getTeamTournamentId().equals(matchTournament.getTournamentId()))
 																		.collect(Collectors.toList());
 			TeamFifaTournament localTeamTournament = localTeamFifaTournamentList.get(0);
 			TeamFifaTournament awayTeamTournament = awayTeamFifaTournamentList.get(0);
@@ -657,7 +690,7 @@ public class TeamTournamentService {
 			DocumentReference awayTeamFifaTournamentReference = getFifaTournamentReferenceFromTeam(awayTeam.getTeamId(), awayTeamTournament.getTeamTournamentId());
 			List<Match> localTeamFifaTournamentMatchesList = localTeamTournament.getTeamTournamentMatches();
 			List<Match> awayTeamFifaTournamentMatchesList = awayTeamTournament.getTeamTournamentMatches();
-			Match match = new Match(matchTournament, localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE);
+			Match match = new Match(matchTournament, localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE, matchTournament.getTournamentGame().equals("Fifa") ? "Fifa" : "Call Of Duty");
 			DocumentReference addedDocument = getTournamentReference(matchTournament.getTournamentId()).collection("tournamentMatches").add(match).get();
 			String matchDocumentId = addedDocument.getId();
 			match.setMatchId(matchDocumentId);
@@ -705,13 +738,13 @@ public class TeamTournamentService {
 																		.getDocuments()
 																		.stream()
 																		.map(document -> document.toObject(TeamCodTournament.class))
-																		.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(matchTournament.getTournamentId()))
+																		.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(matchTournament.getTournamentId()))
 																		.collect(Collectors.toList());
 			List<TeamCodTournament> awayTeamCodTournamentsList = getCodTournamentsSubcollectionFromTeam(awayTeam.getTeamId()).get().get()
 																		.getDocuments()
 																		.stream()
 																		.map(document -> document.toObject(TeamCodTournament.class))
-																		.filter(teamCodTournament -> teamCodTournament.getTeamCodTournament().getTournamentId().equals(matchTournament.getTournamentId()))
+																		.filter(teamCodTournament -> teamCodTournament.getTeamTournamentId().equals(matchTournament.getTournamentId()))
 																		.collect(Collectors.toList());
 			TeamCodTournament localTeamCodTournament = localTeamCodTournamentsList.get(0);
 			TeamCodTournament awayTeamCodTournament = awayTeamCodTournamentsList.get(0);
@@ -719,7 +752,7 @@ public class TeamTournamentService {
 			DocumentReference awayTeamCodTournamentReference = getCodTournamentReferenceFromTeam(awayTeam.getTeamId(), awayTeamCodTournament.getTeamCodTournamentId());
 			List<Match> localTeamCodTournamentMatchesList = localTeamCodTournament.getTeamCodTournamentMatches();
 			List<Match> awayTeamCodTournamentMatchesList = awayTeamCodTournament.getTeamCodTournamentMatches();
-			Match match = new Match(matchTournament, localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE);
+			Match match = new Match(matchTournament, localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE, matchTournament.getTournamentGame().equals("Fifa") ? "Fifa" : "Call Of Duty");
 			DocumentReference matchTourneyDocument = getTournamentReference(matchTournament.getTournamentId()).collection("tournamentMatches").add(match).get();
 			String matchDocumentId = matchTourneyDocument.getId();
 			match.setMatchId(matchDocumentId);
@@ -768,7 +801,7 @@ public class TeamTournamentService {
 			List<UserTournament> userTournamentList = userOnDB
 														.getUserTournaments()
 														.stream()
-														.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournament.getTournamentId()))
+														.filter(userTournament -> userTournament.getUserTournamentId().equals(tournament.getTournamentId()))
 														.collect(Collectors.toList());
 			
 			UserTournament userTournament = userTournamentList.get(0);	
@@ -784,33 +817,71 @@ public class TeamTournamentService {
 		}
 		return "Not found.";
 	}
-	
-//	public String disputeCodMatch(Match match, String tournamentId, Team team) throws InterruptedException, ExecutionException {
-//		if(isActiveTournament(tournamentId)) {
-//			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
-//			DocumentReference tournamentReference = getTournamentReference(tournamentId);
-//			match.setMatchStatus(MatchStatus.DISPUTED);
-//			match.setUploaded(false);
-//			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
-//			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
-//			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
-//			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
-//			
-//		}
-//	}
-	
+		
 	public String uploadCodMatchResult(Match match, String tournamentId, Team team) throws InterruptedException, ExecutionException {
 		if(isActiveTournament(tournamentId)) {
 			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
 			DocumentReference tournamentReference = getTournamentReference(tournamentId);
+			Match matchOnDB = tournamentReference.collection("tournamentMatches").document(match.getMatchId()).get().get().toObject(Match.class);
+			if(!matchOnDB.getMatchStatus().equals(MatchStatus.DISPUTED)) {
+				boolean isLocalTeam = match.getMatchLocalTeam().getTeamId().equals(team.getTeamId()); 
+				if(!isValidMatchUploadedStatus(tournamentOnDB, match, matchOnDB)) {
+					match.setMatchStatus(MatchStatus.DISPUTED);
+					match.setDisputedMatch(true);
+					if(isLocalTeam) {
+						match.setLocalTeamUploaded(true);
+					}
+					else {
+						match.setAwayTeamUploaded(true);
+					}
+					tournamentReference.collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+					return "Match disputed";
+				}
+				if(!match.isLocalTeamUploaded() && !match.isAwayTeamUploaded()) {
+					if(isLocalTeam) {
+						match.setLocalTeamUploaded(true);
+					}
+					else {
+						match.setAwayTeamUploaded(true);
+					}
+					tournamentReference.collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+					return "Results recorded";
+				}
+				if(isLocalTeam) {
+					match.setLocalTeamUploaded(true);
+				}
+				else {
+					match.setAwayTeamUploaded(true);
+				}
+			}
+			if(matchOnDB.getMatchStatus().equals(MatchStatus.DISPUTED)) {
+				addResolvedStatusToDisputedMatch(match.getMatchId());
+				match.setDisputedMatch(false);
+				match.setHasImage(false);
+			}
 			match.setMatchStatus(MatchStatus.INACTIVE);
-			match.setUploaded(true);
 			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
 			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
 			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
 			addInvalidStatusToTeamCodTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
 			Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 			Team winningTeam = match.getMatchWinningTeam();
+			Team losingTeam = winningTeam.getTeamId().equals(match.getMatchLocalTeam().getTeamId()) ? match.getMatchAwayTeam() : match.getMatchLocalTeam();
+			addResultToTeams(winningTeam, losingTeam, tournamentOnDB);
+			if(tournamentOnDB.getTournamentFormat().equals(TournamentFormat.PvP)) {				
+				
+				List<Team> tournamentLeaderboardForLeague = tournamentOnDB.getTournamentLeaderboardForLeague()
+																.stream()
+																.filter(tournamentTeam -> !tournamentTeam.getTeamId().equals(losingTeam.getTeamId()))
+																.collect(Collectors.toList());
+				WriteBatch batch = firestore.batch();
+				batch.update(tournamentReference, "tournamentLeaderboardForLeague", tournamentLeaderboardForLeague);
+				batch.commit().get();
+				if(tournamentLeaderboardForLeague.size() == 1){
+					terminateTournament(tournamentOnDB, winningTeam, losingTeam);
+					return "Tournament terminated.";
+				}
+			}
 			if(tournamentTeamStack.isEmpty()) {
 				tournamentTeamStack.add(winningTeam);
 			}
@@ -831,14 +902,66 @@ public class TeamTournamentService {
 		if(isActiveTournament(tournamentId)) {
 			DocumentReference tournamentReference = getTournamentReference(tournamentId);
 			Tournament tournamentOnDB = getTournamentReference(tournamentId).get().get().toObject(Tournament.class);
+			Match matchOnDB = tournamentReference.collection("tournamentMatches").document(match.getMatchId()).get().get().toObject(Match.class);
+			if(!matchOnDB.getMatchStatus().equals(MatchStatus.DISPUTED)) {
+				boolean isLocalTeam = match.getMatchLocalTeam().getTeamId().equals(team.getTeamId()); 
+				if(!isValidMatchUploadedStatus(tournamentOnDB, match, matchOnDB)) {
+					match.setMatchStatus(MatchStatus.DISPUTED);
+					match.setDisputedMatch(true);
+					if(isLocalTeam) {
+						match.setLocalTeamUploaded(true);
+					}
+					else {
+						match.setAwayTeamUploaded(true);
+					}
+					tournamentReference.collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+					return "Match disputed";
+				}
+				if(!match.isLocalTeamUploaded() && !match.isAwayTeamUploaded()) {
+					if(isLocalTeam) {
+						match.setLocalTeamUploaded(true);
+					}
+					else {
+						match.setAwayTeamUploaded(true);
+					}
+					tournamentReference.collection("tournamentMatches").document(match.getMatchId()).set(match).get();
+					return "Results recorded";
+				}
+				if(isLocalTeam) {
+					match.setLocalTeamUploaded(true);
+				}
+				else {
+					match.setAwayTeamUploaded(true);
+				}
+			}
+			if(matchOnDB.getMatchStatus().equals(MatchStatus.DISPUTED)) {
+				addResolvedStatusToDisputedMatch(match.getMatchId());
+				match.setDisputedMatch(false);
+				match.setHasImage(false);
+			}
 			match.setMatchStatus(MatchStatus.INACTIVE);
-			match.setUploaded(true);
 			WriteResult resultFromReplacement = getTournamentReference(tournamentId).collection("tournamentMatches").document(match.getMatchId()).set(match).get();
 			System.out.println("Replaced Document: " + resultFromReplacement.getUpdateTime());
 			addInvalidStatusToTeamFifaTournamentMatch(tournamentId, match.getMatchAwayTeam(), match);
 			addInvalidStatusToTeamFifaTournamentMatch(tournamentId, match.getMatchLocalTeam(), match);
 			Stack<Team> tournamentTeamStack = tournamentOnDB.getTournamentTeamBracketStack();
 			Team winningTeam = match.getMatchWinningTeam();
+			Team losingTeam = winningTeam.getTeamId().equals(match.getMatchLocalTeam().getTeamId()) ? match.getMatchAwayTeam() : match.getMatchLocalTeam();
+			addResultToTeams(winningTeam, losingTeam, tournamentOnDB);
+			if(tournamentOnDB.getTournamentFormat().equals(TournamentFormat.PvP)) {
+				List<Team> tournamentLeaderboardForLeague = tournamentOnDB.getTournamentLeaderboardForLeague()
+																	.stream()
+																	.filter(tournamentTeam -> !tournamentTeam.getTeamId().equals(losingTeam.getTeamId()))
+																	.collect(Collectors.toList());
+				WriteBatch batch = firestore.batch();
+				batch.update(tournamentReference, "tournamentLeaderboardForLeague", tournamentLeaderboardForLeague);
+				batch.commit().get();
+			
+				if(tournamentLeaderboardForLeague.size() == 1) {
+					terminateTournament(tournamentOnDB, winningTeam, losingTeam);
+					return "Tournament terminated.";
+				}
+			}
 			if(tournamentTeamStack.isEmpty()) {
 				tournamentTeamStack.add(winningTeam);
 			}
@@ -854,6 +977,83 @@ public class TeamTournamentService {
 		return "Not found.";
 	}
 	
+	private void addResolvedStatusToDisputedMatch(String matchId) throws InterruptedException, ExecutionException {
+		QuerySnapshot snapshot = firestore.collection("disputedMatches").whereEqualTo("disputedMatchMatchId", matchId).get().get();
+		DisputedMatch disputedMatch = snapshot.toObjects(DisputedMatch.class).get(0);
+		disputedMatch.setDisputedMatchStatus(DisputedMatchStatus.RESOLVED);
+		firestore.collection("disputedMatches").document(disputedMatch.getDisputedMatchDocumentId()).set(disputedMatch);
+	}
+	
+	private boolean isValidMatchUploadedStatus(Tournament tournamentOnDB, Match match, Match matchOnDB) {
+		if(matchOnDB.isLocalTeamUploaded() || matchOnDB.isAwayTeamUploaded()) {
+			Team winningTeam = match.getMatchWinningTeam();
+			if(matchOnDB.getMatchWinningTeam().getTeamId().equals(winningTeam.getTeamId())) {
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+		return true;
+	} 
+	
+	private void addResultToTeams(Team winningTeam, Team losingTeam, Tournament tournament) throws InterruptedException, ExecutionException {
+		DocumentReference winningTeamReference = getTeamReference(winningTeam.getTeamId());
+		DocumentReference losingTeamReference = getTeamReference(losingTeam.getTeamId());
+		WriteBatch batch = firestore.batch();
+		if(tournament.getTournamentGame().equals("Call Of Duty")) {
+			batch.update(winningTeamReference, "teamCodTotalWs", FieldValue.increment(1));
+			batch.update(losingTeamReference, "teamCodTotalLs", FieldValue.increment(1));
+		}
+		else {
+			batch.update(winningTeamReference, "teamFifaTotalWs", FieldValue.increment(1));
+			batch.update(losingTeamReference, "teamFifaTotalLs", FieldValue.increment(1));
+		}
+		batch.commit().get();
+		List<User> winningTeamUsers = winningTeam.getTeamUsers();
+		List<User> losingTeamUsers = losingTeam.getTeamUsers();
+		winningTeamUsers
+						.stream()
+						.forEach(user -> {
+							try {
+								addResultToUser(user, true, tournament);
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+		losingTeamUsers
+						.stream()
+						.forEach(user -> {
+							try {
+								addResultToUser(user, false, tournament);
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+	}
+	
+	private void addResultToUser(User user, boolean isWinningUser, Tournament tournament) throws InterruptedException, ExecutionException {
+		DocumentReference userReference = firestore.collection("users").document(user.getUserId());
+		WriteBatch batch = firestore.batch();
+		if(tournament.getTournamentGame().equals("Fifa")) {
+			batch.update(userReference, isWinningUser ? "userCodTotalWs" : "userCodTotalLs", FieldValue.increment(1));
+		}
+		else {
+			batch.update(userReference, isWinningUser ? "userFifaTotalWs" : "userFifaTotalLs", FieldValue.increment(1));
+		}
+		batch.commit().get();
+	}
+	
+	private void terminateTournament(Tournament tournament, Team tournamentWinningTeam, Team tournamentLosingTeam) throws InterruptedException, ExecutionException {
+		DocumentReference tournamentReference = getTournamentReference(tournament.getTournamentId());
+		DocumentReference winningTeamModeratorReference = firestore.collection("users").document(tournamentWinningTeam.getTeamModerator().getUserId());
+		WriteBatch batch = firestore.batch();
+		batch.update(tournamentReference, "tournamentWinningTeam", tournamentWinningTeam);
+		batch.update(tournamentReference, "tournamentStatus", TournamentStatus.TERMINATED);
+		batch.update(winningTeamModeratorReference, "userCash", tournament.getTournamentCashPrize());
+		batch.commit().get();
+	}
+	
 	public void addInvalidStatusToTeamCodTournamentMatch(String tournamentId, Team team, Match match) throws InterruptedException, ExecutionException {
 		if(isActive(team.getTeamId())) {
 			Team teamOnDB = getTeamReference(team.getTeamId()).get().get().toObject(Team.class);
@@ -861,7 +1061,7 @@ public class TeamTournamentService {
 																						.getDocuments()
 																						.stream()
 																						.map(document -> document.toObject(TeamCodTournament.class))
-																						.filter(tournament -> tournament.getTeamCodTournament().getTournamentId().equals(tournamentId))
+																						.filter(tournament -> tournament.getTeamTournamentId().equals(tournamentId))
 																						.collect(Collectors.toList());
 			if(!teamCodTournamentsListWithTournament.isEmpty()) {
 				TeamCodTournament teamCodTournament = teamCodTournamentsListWithTournament.get(0);
@@ -902,7 +1102,7 @@ public class TeamTournamentService {
 																					.getDocuments()
 																					.stream()
 																					.map(document -> document.toObject(TeamFifaTournament.class))
-																					.filter(tournament -> tournament.getTeamTournament().getTournamentId().equals(tournamentId))
+																					.filter(tournament -> tournament.getTeamTournamentId().equals(tournamentId))
 																					.collect(Collectors.toList());
 			if(!teamFifaTournamentsListWithTournament.isEmpty()) {
 				TeamFifaTournament teamFifaTournament = teamFifaTournamentsListWithTournament.get(0);
@@ -941,7 +1141,7 @@ public class TeamTournamentService {
 		List<UserTournament> userTournamentList = userOnDB.getUserTournaments();
 		List<UserTournament> userTournamentsWithTournament = userOnDB.getUserTournaments()
 																.stream()
-																.filter(userTournament -> userTournament.getUserTournament().getTournamentId().equals(tournamentId))
+																.filter(userTournament -> userTournament.getUserTournamentId().equals(tournamentId))
 																.collect(Collectors.toList());
 		if(!userTournamentsWithTournament.isEmpty()) {
 			UserTournament userTournament = userTournamentsWithTournament.get(0);

@@ -86,17 +86,31 @@ public class TeamController {
 		return new ResponseEntity<ImageModel>(teamImageModel.get(), HttpStatus.NO_CONTENT);
 	}
 	
-	@GetMapping(value = "/teams/leaderboards")
-	public ResponseEntity<List<Team>> getFirstFifteenTeams() throws InterruptedException, ExecutionException{
-		List<Team> teams = this.teamService.getFirstFifteenTeams();
+	@GetMapping(value = "/teams/leaderboards/cod")
+	public ResponseEntity<List<Team>> getFirstFifteenTeamsByCodWins() throws InterruptedException, ExecutionException{
+		List<Team> teams = this.teamService.getFirstFifteenTeamsByCodWins();
 		return new ResponseEntity<List<Team>>(teams, HttpStatus.OK);
 	}
 	
-	@GetMapping(value = "/teams/leaderboards/next")
-	public ResponseEntity<List<Team>> getNextPageBy(@RequestParam(required = true)String lastUserId) throws InterruptedException, ExecutionException{
-		List<Team> teams = this.teamService.getNextPageBy(lastUserId);
+	@GetMapping(value = "/teams/leaderboards/fifa")
+	public ResponseEntity<List<Team>> getFirstFifteenTeamsByFifaWins() throws InterruptedException, ExecutionException{
+		List<Team> teams = this.teamService.getFirstFifteenTeamsByFifaWins();
 		return new ResponseEntity<List<Team>>(teams, HttpStatus.OK);
 	}
+
+	
+	@GetMapping(value = "/teams/leaderboards/cod/next")
+	public ResponseEntity<List<Team>> getNextPageByCodWins(@RequestParam(required = true)String lastUserId) throws InterruptedException, ExecutionException{
+		List<Team> teams = this.teamService.getNextPageByCodWins(lastUserId);
+		return new ResponseEntity<List<Team>>(teams, HttpStatus.OK);
+	}
+
+	@GetMapping(value = "/teams/leaderboards/fifa/next")
+	public ResponseEntity<List<Team>> getNextPageByFifaWins(@RequestParam(required = true)String lastUserId) throws InterruptedException, ExecutionException{
+		List<Team> teams = this.teamService.getNextPageByFifaWins(lastUserId);
+		return new ResponseEntity<List<Team>>(teams, HttpStatus.OK);
+	}
+
 	
 	@PostMapping(value = "/teams/create")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")

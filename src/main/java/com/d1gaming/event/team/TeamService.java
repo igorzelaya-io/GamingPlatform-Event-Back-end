@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.d1gaming.event.image.EventImageService;
+import com.d1gaming.event.tournament.TournamentService;
 import com.d1gaming.library.image.ImageModel;
 import com.d1gaming.library.role.Role;
 import com.d1gaming.library.team.Team;
@@ -32,6 +33,7 @@ import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
 import com.google.cloud.firestore.WriteResult;
+import com.google.cloud.firestore.Query.Direction;
 
 @Service
 public class TeamService {
@@ -41,6 +43,9 @@ public class TeamService {
 	
 	@Autowired
 	private EventImageService eventImagesService;
+	
+	@Autowired
+	private TournamentService tournamentService;
 	
 	private final String TEAM_COLLECTION = "teams";
 	
@@ -69,16 +74,6 @@ public class TeamService {
 			return true;
 		}
 		return false;
-	}
-	
-	private DocumentReference getTeamReferenceByName(String teamName) throws InterruptedException, ExecutionException {
-		QuerySnapshot querySnapshot = getTeamsCollection().whereEqualTo("teamName", teamName).get().get();
-		List<Team> teamLs = querySnapshot.toObjects(Team.class);
-		DocumentReference teamReference = null;
-		for(Team team : teamLs) {
-			teamReference = getTeamReference(team.getTeamId());
-		}
-		return teamReference;
 	}
 	
 	public DocumentReference getTeamReference(String teamId) {
@@ -141,19 +136,29 @@ public class TeamService {
 		return new ArrayList<>();
 	}
 	
-	public List<Team> getFirstFifteenTeams() throws InterruptedException, ExecutionException{
+	public List<Team> getFirstFifteenTeamsByCodWins() throws InterruptedException, ExecutionException{
 		CollectionReference teamCollection = getTeamsCollection();
-		Query firstPage = teamCollection.orderBy("teamTotalWs").limit(15);
+		Query firstPage = teamCollection.orderBy("teamCodTotalWs", Direction.DESCENDING).limit(15);
 		return firstPage.get().get()
 						.getDocuments()
 						.stream()
 						.map(document -> document.toObject(Team.class))
 						.collect(Collectors.toList());
-	} 
+	}
 	
-	public List<Team> getNextPageBy(String lastUserId) throws InterruptedException, ExecutionException{
+	public List<Team> getFirstFifteenTeamsByFifaWins() throws InterruptedException, ExecutionException{
+		CollectionReference teamCollection = getTeamsCollection();
+		Query firstPage = teamCollection.orderBy("teamFifaTotalWs", Direction.DESCENDING).limit(15);
+		return firstPage.get().get()
+						.getDocuments()
+						.stream()
+						.map(document -> document.toObject(Team.class))
+						.collect(Collectors.toList());
+	}
+	
+	public List<Team> getNextPageByCodWins(String lastUserId) throws InterruptedException, ExecutionException{
 		DocumentSnapshot lastUserIdSnapshot = getUserReference(lastUserId).get().get();
-		Query query = getTeamsCollection().orderBy("teamTotalWs").startAfter(lastUserIdSnapshot).limit(15);
+		Query query = getTeamsCollection().orderBy("teamCodTotalWs").startAfter(lastUserIdSnapshot).limit(15);
 		
 		return query.get().get()
 							.getDocuments()
@@ -161,6 +166,18 @@ public class TeamService {
 							.map(document -> document.toObject(Team.class))
 							.collect(Collectors.toList());
 	}
+	
+	public List<Team> getNextPageByFifaWins(String lastUserId) throws InterruptedException, ExecutionException{
+		DocumentSnapshot lastUserIdSnapshot = getUserReference(lastUserId).get().get();
+		Query query = getTeamsCollection().orderBy("teamFifaTotalWs").startAfter(lastUserIdSnapshot).limit(15);
+		
+		return query.get().get()
+							.getDocuments()
+							.stream()
+							.map(document -> document.toObject(Team.class))
+							.collect(Collectors.toList());
+	}
+
 	
 	public Optional<Team> postTeam(Team team, User teamLeader) throws InterruptedException, ExecutionException {
 		team.setTeamRequests(new ArrayList<>());
@@ -216,23 +233,29 @@ public class TeamService {
 			User user = team.getTeamModerator();
 			CollectionReference teamCodTournaments = reference.collection("teamCodTournaments");
 			if(!teamCodTournaments.get().get().isEmpty()) {
-				List<Tournament> teamTournaments = teamCodTournaments.get().get()
-													.getDocuments()
-													.stream()
-													.map(document -> document.toObject(TeamCodTournament.class))
-													.map(teamCodTournament -> teamCodTournament.getTeamCodTournament())
-													.collect(Collectors.toList());
+				List<Tournament> teamTournaments = 
+						this.tournamentService.getAllTournamentsById(
+																	teamCodTournaments.get().get()
+																	.getDocuments()
+																	.stream()
+																	.map(document -> document.toObject(TeamCodTournament.class))
+																	.map(teamCodTournament -> teamCodTournament.getTeamTournamentId())
+																	.collect(Collectors.toList())
+																);
 													
 				deleteTeamFromAllTournaments(team.getTeamId(), teamTournaments);
 			}
 			CollectionReference teamFifaTournaments = reference.collection("teamFifaTournaments");
 			if(!teamFifaTournaments.get().get().isEmpty()) {
-				List<Tournament> teamTournaments = teamFifaTournaments.get().get()
-						.getDocuments()
-						.stream()
-						.map(document -> document.toObject(TeamFifaTournament.class))
-						.map(teamFifaTournament -> teamFifaTournament.getTeamTournament())
-						.collect(Collectors.toList());
+				List<Tournament> teamTournaments = 
+						this.tournamentService.getAllTournamentsById(
+																	teamFifaTournaments.get().get()
+																	.getDocuments()
+																	.stream()
+																	.map(document -> document.toObject(TeamFifaTournament.class))
+																	.map(teamFifaTournament -> teamFifaTournament.getTeamTournamentId())
+																	.collect(Collectors.toList())
+																	);
 						
 				deleteTeamFromAllTournaments(team.getTeamId(), teamTournaments);
 			}

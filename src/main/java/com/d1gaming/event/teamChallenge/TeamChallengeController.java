@@ -60,10 +60,16 @@ public class TeamChallengeController {
 		return new ResponseEntity<Challenge>(teamChallenge.get(), HttpStatus.OK);
 	}
 	
+	@GetMapping(value = "/teamChallenges/matches/disputed")
+	public ResponseEntity<List<Match>> getDisputedMatchesFromChallenge(@RequestParam(required = true)String challengeId) throws InterruptedException, ExecutionException{
+		List<Match> matchesList = teamChallengeService.getAllDisputedMatchesFromChallenge(challengeId);
+		return new ResponseEntity<List<Match>>(matchesList, HttpStatus.OK);
+	}
+	
 	@PostMapping(value = "/teamChallenges/matches/cod/save")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('TEAM_ADMIN')")
 	public ResponseEntity<MessageResponse> uploadCodMatchResult(@RequestBody(required = true)MatchChallengeRequest matchChallengeRequest) throws InterruptedException, ExecutionException{
-		String response = teamChallengeService.uploadCodMatchResult(matchChallengeRequest.getMatchChallengeMatch(), matchChallengeRequest.getMatchChallengeChallengeId());
+		String response = teamChallengeService.uploadCodMatchResult(matchChallengeRequest.getMatchChallengeMatch(), matchChallengeRequest.getMatchChallengeChallengeId(), matchChallengeRequest.getMatchChallengeTeam().getTeamId());
 		if(response.equals("Not found.")) {
 			return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.NOT_FOUND);
 		}

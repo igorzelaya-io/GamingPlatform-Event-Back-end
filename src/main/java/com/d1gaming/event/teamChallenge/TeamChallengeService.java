@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import com.d1gaming.event.challenge.ChallengeService;
 import com.d1gaming.library.challenge.Challenge;
 import com.d1gaming.library.challenge.ChallengeStatus;
+import com.d1gaming.library.match.DisputedMatch;
+import com.d1gaming.library.match.DisputedMatchStatus;
 import com.d1gaming.library.match.Match;
 import com.d1gaming.library.match.MatchStatus;
 import com.d1gaming.library.team.Team;
@@ -38,6 +40,8 @@ public class TeamChallengeService {
 	
 	@Autowired
 	private ChallengeService challengeService;
+	
+	 
 
 	private final String TEAM_COLLECTION = "teams";
 	
@@ -72,7 +76,9 @@ public class TeamChallengeService {
 		DocumentReference challengeReference = getChallengeReference(challengeId);
 		DocumentSnapshot challengeSnapshot = challengeReference.get().get();
 		Challenge challengeOnDB = challengeSnapshot.toObject(Challenge.class);
-		if(challengeSnapshot.exists() && (challengeOnDB.getChallengeStatus().equals(ChallengeStatus.ACTIVE) || challengeOnDB.getChallengeStatus().equals(ChallengeStatus.IN_PROGRESS))) {
+		if(challengeSnapshot.exists() && (challengeOnDB.getChallengeStatus().equals(ChallengeStatus.ACTIVE) 
+											|| challengeOnDB.getChallengeStatus().equals(ChallengeStatus.IN_PROGRESS)
+											|| challengeOnDB.getChallengeStatus().equals(ChallengeStatus.TERMINATED))) {
 			return true; 
 		}
 		return false;
@@ -165,33 +171,50 @@ public class TeamChallengeService {
 		return new ArrayList<>();
 	}
 	
+	public List<Match> getAllDisputedMatchesFromChallenge(String challengeId) throws InterruptedException, ExecutionException{
+		if(isActiveChallenge(challengeId)) {
+			return getChallengeReference(challengeId).collection("challengeMatches").get().get()
+															.getDocuments()
+															.stream()
+															.map(document -> document.toObject(Match.class))
+															.filter(match -> match.getMatchStatus().equals(MatchStatus.DISPUTED))
+															.collect(Collectors.toList());
+		}
+		return new ArrayList<>();
+	}
+	
 	//
 	public String addTeamToChallenge(Team team, Challenge challenge) throws InterruptedException, ExecutionException {
 		if(isActiveChallenge(challenge.getChallengeId()) && isActive(team.getTeamId())) {
-			DocumentReference challengeReference = getChallengeReference(challenge.getChallengeId());
-			DocumentReference teamReference = getTeamReference(team.getTeamId());
-			Team teamOnDB = teamReference.get().get().toObject(Team.class);
-			Challenge challengeOnDB = challengeReference.get().get().toObject(Challenge.class);
-			challengeOnDB.setChallengeAwayTeam(teamOnDB);
-			List<Match> teamCodChallengeMatches = new ArrayList<>();
-			TeamCodChallenge teamCodChallengeSubdocument = new TeamCodChallenge(challengeOnDB.getChallengeId(), teamCodChallengeMatches, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.IN_PROGRESS);
-			teamCodChallengeSubdocument.setTeamChallengeTeamId(team.getTeamId());
-			DocumentReference addedDocumentToTeamCodChallenges = getTeamCodChallengeCollectionReference(team.getTeamId()).add(teamCodChallengeSubdocument).get();
-			String documentId = addedDocumentToTeamCodChallenges.getId();
-			WriteBatch batch = firestore.batch();
-			batch.update(addedDocumentToTeamCodChallenges, "teamCodChallengeId", documentId);
-			batch.update(challengeReference, "challengeAwayTeam", teamOnDB);
-			batch.update(challengeReference, "challengeStatus", ChallengeStatus.IN_PROGRESS);
-			batch.commit().get();
-			List<User> teamUsers = teamOnDB.getTeamUsers();
-			teamUsers.forEach(teamUser -> {
-				try {
-					addChallengeToUser(teamUser, teamOnDB, challengeOnDB);
-				} catch (InterruptedException | ExecutionException e) {
-					e.printStackTrace();
-				}
-			});
-			return "Team added to challenge successfully.";
+			if(team.getTeamModerator().getUserTokens() >= challenge.getChallengeTokenFee()) {				
+				DocumentReference challengeReference = getChallengeReference(challenge.getChallengeId());
+				DocumentReference teamReference = getTeamReference(team.getTeamId());
+				DocumentReference teamModeratorReference = firestore.collection("users").document(team.getTeamModerator().getUserId());
+				Team teamOnDB = teamReference.get().get().toObject(Team.class);
+				Challenge challengeOnDB = challengeReference.get().get().toObject(Challenge.class);
+				challengeOnDB.setChallengeAwayTeam(teamOnDB);
+				List<Match> teamCodChallengeMatches = new ArrayList<>();
+				TeamCodChallenge teamCodChallengeSubdocument = new TeamCodChallenge(challengeOnDB.getChallengeId(), teamCodChallengeMatches, 0, 0, 0, 0, 0, 0, TeamTournamentStatus.IN_PROGRESS);
+				teamCodChallengeSubdocument.setTeamChallengeTeamId(team.getTeamId());
+				DocumentReference addedDocumentToTeamCodChallenges = getTeamCodChallengeCollectionReference(team.getTeamId()).add(teamCodChallengeSubdocument).get();
+				String documentId = addedDocumentToTeamCodChallenges.getId();
+				WriteBatch batch = firestore.batch();
+				batch.update(addedDocumentToTeamCodChallenges, "teamCodChallengeId", documentId);
+				batch.update(teamModeratorReference, "userTokens", FieldValue.increment(-challenge.getChallengeTokenFee()));
+				batch.update(challengeReference, "challengeAwayTeam", teamOnDB);
+				batch.update(challengeReference, "challengeStatus", ChallengeStatus.IN_PROGRESS);
+				batch.commit().get();
+				List<User> teamUsers = teamOnDB.getTeamUsers();
+				teamUsers.forEach(teamUser -> {
+					try {
+						addChallengeToUser(teamUser, teamOnDB, challengeOnDB);
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+				return "Team added to challenge successfully.";
+			}
+			return "Not enough tokens";
 		}
 		return "Not found.";
 	}
@@ -258,21 +281,58 @@ public class TeamChallengeService {
 		}
 	}
 	
-	public String uploadCodMatchResult(Match match, String challengeId) throws InterruptedException, ExecutionException {
+	public String uploadCodMatchResult(Match match, String challengeId, String teamId) throws InterruptedException, ExecutionException {
 		if(isActiveChallenge(challengeId)) {
 			DocumentReference challengeReference = getChallengeReference(challengeId);
 			Challenge challengeOnDB = challengeReference.get().get().toObject(Challenge.class);
+			Match matchOnDB = challengeReference.collection("challengeMatches").document(match.getMatchId()).get().get().toObject(Match.class);
+			if(!matchOnDB.getMatchStatus().equals(MatchStatus.DISPUTED)) {
+				Team uploadingTeam = firestore.collection("teams").document(teamId).get().get().toObject(Team.class);
+				boolean isLocalTeam = match.getMatchLocalTeam().getTeamId().equals(uploadingTeam.getTeamId());
+				if(!isValidMatchUploadedStatus(challengeOnDB, match, matchOnDB)) {
+					match.setMatchStatus(MatchStatus.DISPUTED);
+					match.setDisputedMatch(true);
+					if(isLocalTeam) {
+						match.setLocalTeamUploaded(true);
+					}
+					else {
+						match.setAwayTeamUploaded(true);
+					}
+					challengeReference.collection("challengeMatches").document(match.getMatchId()).set(match);
+					return "Match disputed.";
+				}
+				if(!match.isLocalTeamUploaded() && !match.isAwayTeamUploaded()) {
+					if(isLocalTeam) {
+						match.setLocalTeamUploaded(true);
+					}
+					else {
+						match.setAwayTeamUploaded(true);
+					}
+					challengeReference.collection("challengeMatches").document(match.getMatchId()).set(match).get();
+					return "Result recorded";
+				}
+				if(isLocalTeam) {
+					match.setLocalTeamUploaded(true);
+				}
+				else {
+					match.setAwayTeamUploaded(true);
+				}
+			}
+			if(matchOnDB.getMatchStatus().equals(MatchStatus.DISPUTED)) {
+				addResolvedStatusToDisputedMatch(matchOnDB.getMatchId());
+				match.setDisputedMatch(false);
+				match.setHasImage(false);
+			}
 			match.setMatchStatus(MatchStatus.INACTIVE);
-			match.setUploaded(true);
 			WriteResult resultFromReplacement = challengeReference.collection("challengeMatches").document(match.getMatchId()).set(match).get();
 			System.out.println("Replaced Document at: " + resultFromReplacement.getUpdateTime());
 			addInvalidStatusToTeamCodChallengeMatch(challengeId, match.getMatchAwayTeam(),  match);
 			addInvalidStatusToTeamCodChallengeMatch(challengeId, match.getMatchLocalTeam(), match);
-			
 			TeamCodChallenge localTeamCodChallenge = getTeamCodChallengeCollectionReference(match.getMatchLocalTeam().getTeamId()).get().get()
 																								.getDocuments()
 																								.stream()
 																								.map(document -> document.toObject(TeamCodChallenge.class))
+																								.filter(teamCodChallenge -> teamCodChallenge.getTeamChallengeId().equals(challengeId))
 																								.collect(Collectors.toList())
 																								.get(0);
 			
@@ -280,19 +340,27 @@ public class TeamChallengeService {
 																								.getDocuments()
 																								.stream()
 																								.map(document -> document.toObject(TeamCodChallenge.class))
+																								.filter(teamCodChallenge -> teamCodChallenge.getTeamChallengeId().equals(challengeId))
 																								.collect(Collectors.toList())
 																								.get(0);
 			DocumentReference localTeamCodChallengeReference = getTeamReference(match.getMatchLocalTeam().getTeamId()).collection("teamCodChallenges").document(localTeamCodChallenge.getTeamCodChallengeId());
 			DocumentReference awayTeamCodChallengeReference = getTeamReference(match.getMatchAwayTeam().getTeamId()).collection("teamCodChallenges").document(awayTeamCodChallenge.getTeamCodChallengeId());
 			Team winningTeam = match.getMatchWinningTeam();
 			Team losingTeam = winningTeam.getTeamId().equals(match.getMatchLocalTeam().getTeamId()) ? match.getMatchAwayTeam() : match.getMatchLocalTeam();
-			DocumentReference winningTeamReference = getTeamReference(winningTeam.getTeamId());
-			DocumentReference losingTeamReference = getTeamReference(losingTeam.getTeamId());
 			WriteBatch batch = firestore.batch();
 			batch.update(winningTeam.getTeamId().equals(localTeamCodChallenge.getTeamChallengeTeamId())
 						? localTeamCodChallengeReference : awayTeamCodChallengeReference, "teamChallengeNumberOfMatchesWins", FieldValue.increment(1));
-			batch.update(winningTeamReference, "teamTotalWs", FieldValue.increment(1));
-			batch.update(losingTeamReference, "teamTotalLs", FieldValue.increment(1));
+			batch.update(winningTeam.getTeamId().equals(localTeamCodChallenge.getTeamChallengeTeamId())
+						? awayTeamCodChallengeReference: localTeamCodChallengeReference, "teamChallengeNumberOfMatchesLosses", FieldValue.increment(1));
+			if(winningTeam.getTeamId().equals(match.getMatchLocalTeam().getTeamId())) {
+				localTeamCodChallenge.setTeamChallengeNumberOfMatchesWins(localTeamCodChallenge.getTeamChallengeNumberOfMatchesWins() + 1);
+			}
+			else {
+				awayTeamCodChallenge.setTeamChallengeNumberOfMatchesWins(awayTeamCodChallenge.getTeamChallengeNumberOfMatchesWins() + 1);
+			}
+			batch.update(localTeamCodChallengeReference, "teamChallengeNumberOfMatchesPlayed", FieldValue.increment(1));
+			batch.update(awayTeamCodChallengeReference, "teamChallengeNumberOfMatchesPlayed", FieldValue.increment(1));
+			addResultToTeams(winningTeam, losingTeam, challengeOnDB);
 			batch.commit().get();
 			WriteBatch matchesBatch = firestore.batch();
 			if(challengeOnDB.getChallengeMatchesNumber().equals("Best of 1")){
@@ -360,30 +428,74 @@ public class TeamChallengeService {
 		return "Not found.";
 	}
 	
-	private void terminateChallenge(Challenge challenge, Team challengeWinningTeam, Team challengeLosingTeam) {
-		DocumentReference winningTeamReference = getTeamReference(challengeWinningTeam.getTeamId());
-		DocumentReference teamModeratorReference = firestore.collection("users").document(challengeWinningTeam.getTeamModerator().getUserId());
-		DocumentReference challengeReference = getChallengeReference(challenge.getChallengeId());
-		DocumentReference losingTeamReference = getTeamReference(challengeLosingTeam.getTeamId());
-		WriteBatch batch = firestore.batch();
-		batch.update(challengeReference, "challengeWinningTeam", challengeWinningTeam);
-		batch.update(teamModeratorReference, "userCash", FieldValue.increment(challenge.getChallengeCashPrize()));
-		batch.update(winningTeamReference, "teamTotalWs", FieldValue.increment(1));	
-		batch.update(losingTeamReference, "teamTotalLs", FieldValue.increment(1));
-		List<User> winningUsers = challengeWinningTeam.getTeamUsers();
-		winningUsers.forEach(user -> {
-			addResultToUser(user, true);
-		});
-		List<User> losingUsers = challengeLosingTeam.getTeamUsers();
-		losingUsers.forEach(user -> {
-			addResultToUser(user, false);
-		});
+	private boolean isValidMatchUploadedStatus(Challenge challengeOnDB, Match match, Match matchOnDB) throws InterruptedException, ExecutionException {
+		if(matchOnDB.isLocalTeamUploaded() || matchOnDB.isAwayTeamUploaded()) {
+			Team winningTeam = match.getMatchWinningTeam();
+			if(matchOnDB.getMatchWinningTeam().getTeamId().equals(winningTeam.getTeamId())) {
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+		return true;
 	}
 	
-	private void addResultToUser(User user, boolean isWinningUser) {
+	private void terminateChallenge(Challenge challenge, Team challengeWinningTeam, Team challengeLosingTeam) throws InterruptedException, ExecutionException {
+		DocumentReference teamModeratorReference = firestore.collection("users").document(challengeWinningTeam.getTeamModerator().getUserId());
+		DocumentReference challengeReference = getChallengeReference(challenge.getChallengeId());
+		WriteBatch batch = firestore.batch();
+		batch.update(challengeReference, "challengeStatus", ChallengeStatus.TERMINATED);
+		batch.update(challengeReference, "challengeWinningTeam", challengeWinningTeam);
+		batch.update(teamModeratorReference, "userCash", FieldValue.increment(challenge.getChallengeCashPrize()));
+		batch.commit().get();
+	}
+	
+	private void addResultToTeams(Team winningTeam, Team losingTeam, Challenge challengeOnDB) throws InterruptedException, ExecutionException {
+		DocumentReference winningTeamReference = getTeamReference(winningTeam.getTeamId());
+		DocumentReference losingTeamReference = getTeamReference(losingTeam.getTeamId());
+		WriteBatch batch = firestore.batch();
+		if(challengeOnDB.getChallengeGame().equals("Call Of Duty")) {
+			batch.update(winningTeamReference, "teamCodTotalWs", FieldValue.increment(1));
+			batch.update(losingTeamReference, "teamCodTotalLs", FieldValue.increment(1));
+		}
+		else {
+			batch.update(winningTeamReference, "teamFifaTotalWs", FieldValue.increment(1));
+			batch.update(losingTeamReference, "teamFifaTotalLs", FieldValue.increment(1));
+		}
+		batch.commit().get();
+		List<User> winningTeamUsers = winningTeam.getTeamUsers();
+		List<User> losingTeamUsers = losingTeam.getTeamUsers();
+		winningTeamUsers
+						.stream()
+						.forEach(user -> {
+							try {
+								addResultToUser(user, true, challengeOnDB);
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+		losingTeamUsers
+						.stream()
+						.forEach(user -> {
+							try {
+								addResultToUser(user, false, challengeOnDB);
+							} catch (InterruptedException | ExecutionException e) {
+								e.printStackTrace();
+							}
+						});
+	}
+	
+	private void addResultToUser(User user, boolean isWinningUser, Challenge challenge) throws InterruptedException, ExecutionException {
 		DocumentReference userReference = firestore.collection("users").document(user.getUserId());
 		WriteBatch batch = firestore.batch();
-		batch.update(userReference, isWinningUser ? "userTotalWs" : "userTotalLs", FieldValue.increment(1));
+		if(challenge.getChallengeGame().equals("Call Of Duty")) {
+			batch.update(userReference, isWinningUser ? "userCodTotalWs" : "userCodTotalLs", FieldValue.increment(1));
+		}
+		else {
+			batch.update(userReference, isWinningUser ? "userFifaTotalWs" : "userFifaTotalLs", FieldValue.increment(1));
+		}
+		batch.commit().get();
 	}
 
 	private Match addMatchToTeams(Team localTeam, Team awayTeam, Challenge challenge) throws InterruptedException, ExecutionException {
@@ -408,7 +520,7 @@ public class TeamChallengeService {
 			DocumentReference awayTeamCodChallengeReference = firestore.collection("teams").document(awayTeam.getTeamId()).collection("teamCodChallenges").document(awayTeamCodChallenge.getTeamCodChallengeId());
 			List<Match> localTeamCodChallengeMatchesList = localTeamCodChallenge.getTeamCodChallengeMatches();
 			List<Match> awayTeamCodChallengeMatchesList = awayTeamCodChallenge.getTeamCodChallengeMatches();
-			Match match = new Match(challenge.getChallengeId(), localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE);
+			Match match = new Match(challenge.getChallengeId(), localTeamOnDB, awayTeamOnDB, 0, 0, MatchStatus.ACTIVE, challenge.getChallengeGame().equals("Fifa") ? "Fifa" : "Call Of Duty");
 			DocumentReference addedDocument = firestore.collection("challenges").document(challenge.getChallengeId()).collection("challengeMatches").add(match).get();
 			String documentId = addedDocument.getId();
 			match.setMatchId(documentId);
@@ -526,8 +638,13 @@ public String addMatchToUser(User user, Challenge challenge, Match match) throws
 			batch.update(userReference, "userChallenges", userChallengeList);
 			batch.commit().get();
 		}
-	
-	
 	}
 	
+	public void addResolvedStatusToDisputedMatch(String matchId) throws InterruptedException, ExecutionException {
+		QuerySnapshot query = firestore.collection("disputedMatches").whereEqualTo("disputedMatchMatchId", matchId).get().get();
+		DisputedMatch disputedMatch = query.toObjects(DisputedMatch.class).get(0);
+		disputedMatch.setDisputedMatchStatus(DisputedMatchStatus.RESOLVED);
+		firestore.collection("disputedMatches").document(disputedMatch.getDisputedMatchDocumentId()).set(disputedMatch);
+	}
+
 }

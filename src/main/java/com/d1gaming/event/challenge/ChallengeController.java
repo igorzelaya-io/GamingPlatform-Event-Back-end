@@ -98,7 +98,7 @@ public class ChallengeController {
 	@PostMapping(value="/challenges/add")
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<Object> postChallenge(@RequestBody(required = true)Challenge challenge) throws InterruptedException, ExecutionException{
-		Challenge postedChallenge = challengeServ.postChallenge(challenge.getChallengeModerator(), challenge);
+		Challenge postedChallenge = challengeServ.postChallenge(challenge.getChallengeModeratorId(), challenge);
 		if(postedChallenge == null) {
 			return new ResponseEntity<Object>(postedChallenge, HttpStatus.BAD_REQUEST);
 		}

@@ -150,26 +150,6 @@ public class TeamTournamentController {
 		}
 		return new ResponseEntity<MessageResponse>(new MessageResponse(response), HttpStatus.OK);
 	}
-	
-	@PostMapping(value="/teamTournaments/matches/cod/add")
-	public ResponseEntity<Match> addCodMatchToTeams(@RequestBody(required = true)MatchTournamentRequest matchTournamentRequest) throws InterruptedException, ExecutionException{
-		Match response = teamTournamentService.addMatchToCodTeams(matchTournamentRequest.getMatchTournamentMatch().getMatchLocalTeam(), 
-				matchTournamentRequest.getMatchTournamentMatch().getMatchAwayTeam(), matchTournamentRequest.getMatchTournamentMatch().getMatchTournament());
-		if(response == null) {
-			return new ResponseEntity<Match>(response, HttpStatus.NOT_FOUND);
-		}
-		return new ResponseEntity<Match>(response, HttpStatus.OK);
-	}
-	
-	@PostMapping(value="/teamTournaments/matches/fifa/add")
-	public ResponseEntity<Match> addFifaMatchToTeams(@RequestBody(required = true)MatchTournamentRequest matchTournamentRequest) throws InterruptedException, ExecutionException{
-		Match response = teamTournamentService.addMatchToFifaTeams(matchTournamentRequest.getMatchTournamentMatch().getMatchLocalTeam(), 
-				matchTournamentRequest.getMatchTournamentMatch().getMatchAwayTeam(), matchTournamentRequest.getMatchTournamentMatch().getMatchTournament());
-		if(response == null) {
-			return new ResponseEntity<Match>(response, HttpStatus.NOT_FOUND);
-		}
-		return new ResponseEntity<Match>(response, HttpStatus.OK);
-	}
 		
 	
 	@DeleteMapping(value = "/teamTournaments/cod/remove")

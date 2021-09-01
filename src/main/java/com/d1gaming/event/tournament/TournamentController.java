@@ -117,7 +117,7 @@ public class TournamentController {
 	@PostMapping(value = "/tournaments/save" )
 	@PreAuthorize("hasRole('PLAYER') or hasRole('ADMIN')")
 	public ResponseEntity<Tournament> saveTournament(@RequestBody(required = true)TournamentCreationRequest tournament) throws InterruptedException, ExecutionException{
-		Tournament response = tournamentService.postTournament(tournament.getTournamentUserModerator(), tournament.getTournamentToBeCreated());	
+		Tournament response = tournamentService.postTournament(tournament.getTournamentUserModeratorId(), tournament.getTournamentToBeCreated());	
 		if(response == null) {
 			return new ResponseEntity<Tournament>(response, HttpStatus.NOT_FOUND);
 		}
